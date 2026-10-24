@@ -1,0 +1,7 @@
+# Local host login note (never commit)
+.host-login
+
+# Local tooling
+.DS_Store
+node_modules/
+.playwright-mcp/
