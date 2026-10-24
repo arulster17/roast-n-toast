@@ -306,7 +306,7 @@ function qrInto(el,text,size,dark){
   try{new QRCode(el,{text:text,width:size,height:size,colorDark:dark||'#0B0B14',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M})}catch(e){el.textContent='QR unavailable'}
 }
 function headHTML(ctx){
-  return '<div class="tv-head"><span class="round">'+esc(ctx.q.round||'')+'</span><span class="prog">'+(ctx.idx+1)+' / '+ctx.total+'</span></div>';
+  return '<div class="tv-head"><span class="prog">'+(ctx.idx+1)+' / '+ctx.total+'</span></div>';
 }
 function photoPanel(q){
   if(!q.photo)return '';
@@ -326,8 +326,9 @@ function createTV(root){
     var rings=(t.pattern==='rings')?'<i class="ring r1"></i><i class="ring r2"></i>':'';
     var sc=t.scale||1;
     if(phase==='lobby'){
-      stage.innerHTML=rings+'<div class="lobby"><div class="lobby-l"><h1>'+esc(c.title)+'</h1><p>'+esc(c.tagline)+'</p><p class="how">Scan to join. No app needed. Answers are anonymous.</p></div><div class="lobby-r"><div class="qr-card" data-k="qr"></div><div class="joinurl">'+esc(ctx.joinUrl)+'</div><div class="joined" data-k="guests"></div></div></div>';
-      qrInto($('[data-k=qr]',stage),ctx.joinUrl,280);
+      var link=esc(String(ctx.joinUrl).replace(/^https?:\/\//,'')).replace(/\//g,'/<wbr>');
+      stage.innerHTML=rings+'<div class="lobby"><h1>'+esc(c.title)+'</h1><p>'+esc(c.tagline)+'</p><div class="qr-card" data-k="qr"></div><div class="joinurl">'+link+'</div><p class="how">No app needed. Answers are anonymous.</p><div class="joined" data-k="guests"></div></div>';
+      qrInto($('[data-k=qr]',stage),ctx.joinUrl,260);
     }else if(phase==='end'){
       stage.innerHTML=rings+'<div class="end"><h1>'+esc(c.finale)+'</h1></div>';
     }else if(phase==='collect'){
@@ -346,7 +347,7 @@ function createTV(root){
   function update(ctx){
     var q=ctx.q;phase=ctx.phase;if(!q&&phase!=='end')phase='lobby';if(phase==='lobby'||phase==='end'){}
     var t=ctx.th,c=ctx.cfg;
-    var s=[phase,t.font,t.pattern,t.align,t.scale,t.radius,c.title,c.tagline,c.finale,ctx.joinUrl,q?JSON.stringify([q.id,q.text,q.round,q.accent,q.display,q.kind,q.photo,q.photoCaption,q.options,q.exactWords,q.cloudAnim]):'',ctx.idx,ctx.total].join('§');
+    var s=[phase,t.font,t.pattern,t.align,t.scale,t.radius,c.title,c.tagline,c.finale,ctx.joinUrl,q?JSON.stringify([q.id,q.text,q.accent,q.display,q.kind,q.photo,q.photoCaption,q.options,q.exactWords,q.cloudAnim]):'',ctx.idx,ctx.total].join('§');
     /* cloud build-up: on a live switch to results, in previews, or on a fresh load shortly after the reveal */
     var prevPh=lastPh,prevReady=lastReady;lastPh=phase;lastReady=!!(ctx.stateReady||ctx.preview);aopt=null;
     if(phase==='reveal'&&ctx.preview)aopt={t0:Date.now()};else if(phase==='reveal'&&prevPh!=='reveal'){if(prevPh!==null&&prevReady)aopt={t0:Date.now()};else if(ctx.revealAt)aopt={t0:Math.min(Date.now(),ctx.revealAt)}}
@@ -385,7 +386,7 @@ function createPlay(root,opts){
   function render(force){
     var c=pctx(),q=c.q,m=q?mine(q):[];
     if(q&&q.id!==lastQ){lastQ=q.id;draft='';selected=null;editing=false;err=''}
-    var s=[c.phase,c.locked,q?JSON.stringify([q.id,q.text,q.kind,q.options,q.photo,q.maxLen,q.hint,q.exactWords,q.maxPerGuest,q.round,q.accent]):'',m.map(function(a){return a.id+a.v}).join(','),editing,theme().font,theme().scale,S.state.qid,cfg().title,cfg().finale,S.qs.length].join('§');
+    var s=[c.phase,c.locked,q?JSON.stringify([q.id,q.text,q.kind,q.options,q.photo,q.maxLen,q.hint,q.exactWords,q.maxPerGuest,q.accent]):'',m.map(function(a){return a.id+a.v}).join(','),editing,theme().font,theme().scale,S.state.qid,cfg().title,cfg().finale,S.qs.length].join('§');
     if(!force&&s===sig)return;sig=s;
     var h=head(c),A='',Bt='';
     if(!q||c.phase==='lobby'){
@@ -393,8 +394,7 @@ function createPlay(root,opts){
     }else if(c.phase==='end'){
       h+='<div class="ph-a ph-c"><h2>'+esc(cfg().finale)+'</h2></div>';
     }else{
-      var ac=q.accent||1;
-      h+='<div class="ph-q"><span class="round" style="color:var(--a'+ac+')">'+esc(q.round||'')+'</span>';
+      h+='<div class="ph-q">';
       if(q.photo)h+='<div class="qphoto"><div class="pimg" style="background-image:url('+blobUrl(q.photo)+')"></div></div>';
       h+='<h2>'+esc(q.text)+'</h2>';
       var maxK=q.kind==='text'?(q.maxPerGuest||1):1,canAnswer=c.phase==='collect'&&!c.locked&&(m.length<maxK||editing);
@@ -467,8 +467,12 @@ function createPlay(root,opts){
   window.addEventListener('resize',vp);if(VV){VV.addEventListener('resize',vp);VV.addEventListener('scroll',vpTop)}
   if(document.fonts){if(document.fonts.ready)document.fonts.ready.then(fit);if(document.fonts.addEventListener)document.fonts.addEventListener('loadingdone',fit)}
   vp();
-  if(!preview&&DB&&S.gid){DB.doc('guests/'+safeId(S.gid)).set({t:Date.now()}).catch(function(){})}
-  return {update:function(){render(false)},destroy:function(){window.removeEventListener('resize',vp);if(VV){VV.removeEventListener('resize',vp);VV.removeEventListener('scroll',vpTop)}if(document.fonts&&document.fonts.removeEventListener)document.fonts.removeEventListener('loadingdone',fit)}};
+  function join(){DB.doc('guests/'+safeId(S.gid)).set({t:Date.now()}).catch(function(){})}
+  if(!preview&&DB&&S.gid)join();
+  /* Clear all bumps state.session and deletes the guest list; open phones re-join once, spread over 1.5s */
+  var sess=null,jt=null;
+  function rejoin(){if(preview||!DB||!S.gid||!S.loaded.state)return;var cur=S.state.session||0;if(sess===null){sess=cur;return}if(cur!==sess&&!jt){sess=cur;S.mine={};sig='';jt=setTimeout(function(){jt=null;join()},Math.random()*1500)}}
+  return {update:function(){rejoin();render(false)},destroy:function(){clearTimeout(jt);window.removeEventListener('resize',vp);if(VV){VV.removeEventListener('resize',vp);VV.removeEventListener('scroll',vpTop)}if(document.fonts&&document.fonts.removeEventListener)document.fonts.removeEventListener('loadingdone',fit)}};
 }
 
 /* ================= Host console ================= */
@@ -508,17 +512,18 @@ async function uploadPhoto(){
 function renumber(arr){var ps=[];arr.forEach(function(q,i){if(q.n!==i+1)ps.push(saveQ(q.id,{n:i+1}))});S.qs.sort(function(x,y){return x.n-y.n});tick();return Promise.all(ps)}
 function newQuestion(extra){
   var n=S.qs.length?Math.max.apply(null,S.qs.map(function(q){return q.n||0}))+1:1,last=S.qs[S.qs.length-1];
-  return Object.assign({n:n,round:last?last.round:'The Roast',accent:last?last.accent:1,text:'New question',kind:'text',display:'cloud',cloudAnim:'random',photo:null,photoCaption:'',options:[],maxLen:60,exactWords:0,maxPerGuest:1,merge:true,hint:'',cue:''},extra||{});
+  return Object.assign({n:n,accent:last?last.accent:1,text:'New question',kind:'text',display:'cloud',cloudAnim:'random',photo:null,photoCaption:'',options:[],maxLen:60,exactWords:0,maxPerGuest:1,merge:true,hint:'',cue:''},extra||{});
 }
 function confirmBtn(btn,label,fn){
   var armed=false,orig=btn.textContent,t;
   btn.addEventListener('click',function(){if(!armed){armed=true;btn.textContent='Click again to confirm';t=setTimeout(function(){armed=false;btn.textContent=orig},3500)}else{clearTimeout(t);armed=false;btn.textContent=orig;fn()}});
 }
-async function deleteAnswers(filter){
-  var snap=await DB.collection('answers').get(),ds=snap.docs.filter(function(d){return filter(d.data(),d.id)});
-  for(var i=0;i<ds.length;i+=8){await Promise.all(ds.slice(i,i+8).map(function(d){return DB.doc('answers/'+d.id).delete()}));await sleep(80)}
+async function deleteDocs(col,filter){
+  var snap=await DB.collection(col).get(),ds=snap.docs.filter(function(d){return !filter||filter(d.data(),d.id)});
+  for(var i=0;i<ds.length;i+=8){await Promise.all(ds.slice(i,i+8).map(function(d){return DB.doc(col+'/'+d.id).delete()}));await sleep(80)}
   return ds.length;
 }
+function deleteAnswers(filter){return deleteDocs('answers',filter)}
 async function simulate(n){
   var q=curQ();if(!q){toast('Go live on a question first.');return}
   var vals=[];
@@ -571,7 +576,7 @@ function createHost(root){
     var h='';
     S.qs.forEach(function(q,i){
       var live=q.id===S.state.qid&&S.state.phase!=='lobby';
-      h+='<div class="qrow'+(q.id===H.edit?' sel':'')+(live?' live':'')+'" data-q="'+q.id+'" role="button" tabindex="0" aria-label="Edit question '+(i+1)+(live?', live':'')+'"><span class="no">'+(i+1)+'</span><span class="tx"><b>'+esc(q.text)+'</b><small>'+(live?'<em>Live</em> · ':'')+esc(q.round||'')+' · '+esc(dispLabel(q))+'</small></span>'+(live?'':'<button class="golive" type="button" data-go="'+q.id+'">Go live</button>')+'<span class="mv"><button class="ib" type="button" data-mv="-1" data-id="'+q.id+'" aria-label="Move up">↑</button><button class="ib" type="button" data-mv="1" data-id="'+q.id+'" aria-label="Move down">↓</button></span></div>';
+      h+='<div class="qrow'+(q.id===H.edit?' sel':'')+(live?' live':'')+'" data-q="'+q.id+'" role="button" tabindex="0" aria-label="Edit question '+(i+1)+(live?', live':'')+'"><span class="no">'+(i+1)+'</span><span class="tx"><b>'+esc(q.text)+'</b><small>'+(live?'<em>Live</em> · ':'')+esc(dispLabel(q))+'</small></span>'+(live?'':'<button class="golive" type="button" data-go="'+q.id+'">Go live</button>')+'<span class="mv"><button class="ib" type="button" data-mv="-1" data-id="'+q.id+'" aria-label="Move up">↑</button><button class="ib" type="button" data-mv="1" data-id="'+q.id+'" aria-label="Move down">↓</button></span></div>';
     });
     if(!S.qs.length)h='<p class="muted">No questions yet.</p>';
     if($r('#qlist').dataset.h!==h){$r('#qlist').innerHTML=h;$r('#qlist').dataset.h=h}
@@ -615,10 +620,10 @@ function createHost(root){
     var q=selQ(),p=$r('#panel');
     if(!q){p.innerHTML='<p class="muted">Select a question to edit.</p>';return}
     var isText=q.kind==='text';
-    var sw=[1,2,3].map(function(n){return '<button type="button" class="'+(q.accent===n?'on':'')+'" data-acc="'+n+'" style="background:var(--a'+n+')" aria-label="Round color '+n+'" aria-pressed="'+(q.accent===n)+'"></button>'}).join('');
+    var sw=[1,2,3].map(function(n){return '<button type="button" class="'+(q.accent===n?'on':'')+'" data-acc="'+n+'" style="background:var(--a'+n+')" aria-label="Accent color '+n+'" aria-pressed="'+(q.accent===n)+'"></button>'}).join('');
     p.innerHTML=
     '<div class="f"><label for="f-text">Question</label><textarea id="f-text" data-f="text" rows="2">'+esc(q.text)+'</textarea></div>'+
-    '<div class="frow"><div class="f"><label for="f-round">Round</label><input id="f-round" type="text" data-f="round" value="'+esc(q.round)+'"></div><div class="f fit"><span class="lbl">Color</span><div class="sw">'+sw+'</div></div></div>'+
+    '<div class="f"><span class="lbl">Accent</span><div class="sw">'+sw+'</div></div>'+
     '<div class="frow"><div class="f"><label for="f-kind">Answer type</label><select id="f-kind" data-f="kind">'+KINDS.map(function(k){return '<option value="'+k[0]+'"'+(k[0]===q.kind?' selected':'')+'>'+k[1]+'</option>'}).join('')+'</select></div><div class="f"><label for="f-display">Results</label><select id="f-display" data-f="display">'+(DISPLAYS[q.kind]||[]).map(function(k){return '<option value="'+k[0]+'"'+(k[0]===displayFor(q)?' selected':'')+'>'+k[1]+'</option>'}).join('')+'</select></div></div>'+
     (isText&&displayFor(q)==='cloud'?'<div class="f"><label for="f-anim">Animation</label><select id="f-anim" data-f="cloudAnim">'+CLOUD_ANIMS.map(function(k){return '<option value="'+k[0]+'"'+(k[0]===cloudAnim(q)?' selected':'')+'>'+k[1]+'</option>'}).join('')+'</select></div>':'')+
     (isText?'':'<div class="f"><span class="lbl">Choices</span><div id="opts" class="opts-ed">'+optRows(q)+'</div><button type="button" class="lnk" id="addopt">Add choice</button></div>')+
@@ -660,7 +665,7 @@ function createHost(root){
     '<div class="hr"></div><div class="h-title"><span>Reset</span></div><div class="btnrow"><button class="hbtn sm dng" type="button" id="clrq">Clear live question</button><button class="hbtn sm dng" type="button" id="clrall">Clear all, back to lobby</button></div>';
     qrInto($r('#hqr'),u+'#play',150);
     confirmBtn($r('#clrq'),'',async function(){var q=curQ();if(!q)return;var n=await deleteAnswers(function(d){return d.q===q.id});toast('Cleared '+n+' answers.')});
-    confirmBtn($r('#clrall'),'',async function(){var n=await deleteAnswers(function(){return true});await setState({qid:null,phase:'lobby',locked:false});toast('Cleared '+n+' answers.')});
+    confirmBtn($r('#clrall'),'',async function(){var n=await deleteAnswers(),m=await deleteDocs('guests');await deleteDocs('mod');await setState({qid:null,phase:'lobby',locked:false,session:(S.state.session||0)+1});toast('Cleared '+n+' answers and '+m+(m===1?' guest.':' guests.'))});
   }
   function showTab(t){H.tab=t;updSeg();if(t==='edit'){if(!H.edit&&S.qs.length)H.edit=(curQ()||S.qs[0]).id;buildEditor()}else if(t==='look')buildLook();else buildShare()}
   /* --- actions --- */
