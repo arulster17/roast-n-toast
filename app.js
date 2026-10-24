@@ -29,7 +29,7 @@ var FONT_PAIRS={
   edgy:{name:'Edgy: Syne + Manrope',d:'Syne',dw:800,dq:'Syne:wght@700;800',b:'Manrope',bq:'Manrope:wght@400;500;700'}
 };
 var PRESETS={
-  stage:{name:'Stage Night',bg:'#0E0F1F',surface:'#1A1C33',line:'#2C2F55',text:'#F5F4FF',muted:'#A8ABD0',a1:'#FF5C7A',a2:'#FFC947',a3:'#35E0C0',font:'stage',pattern:'rings'},
+  stage:{name:'Stage Night',bg:'#0E0F1F',surface:'#1A1C33',line:'#2C2F55',text:'#F5F4FF',muted:'#A8ABD0',a1:'#FF5C7A',a2:'#FFC947',a3:'#35E0C0',font:'stage',pattern:'none'},
   daylight:{name:'Daylight',bg:'#F3F5FB',surface:'#FFFFFF',line:'#D5DAEC',text:'#14162B',muted:'#555B7E',a1:'#D81B60',a2:'#2455F5',a3:'#00897B',font:'friendly',pattern:'dots'},
   neon:{name:'Neon Arcade',bg:'#07060F',surface:'#120F24',line:'#2D2552',text:'#F2EEFF',muted:'#A59BD1',a1:'#FF2E93',a2:'#00E5FF',a3:'#C6FF3D',font:'arcade',pattern:'grid'},
   bollywood:{name:'Bollywood Night',bg:'#2A0A12',surface:'#3F1220',line:'#6B2336',text:'#FFF1DC',muted:'#E2B9A0',a1:'#FF8A00',a2:'#FFD23F',a3:'#FF4D6D',font:'gala',pattern:'dots'},
@@ -37,8 +37,8 @@ var PRESETS={
   mono:{name:'Black Tie',bg:'#0A0A0A',surface:'#161616',line:'#333333',text:'#FAFAFA',muted:'#A3A3A3',a1:'#FFFFFF',a2:'#D4D4D4',a3:'#8A8A8A',font:'poster',pattern:'none'}
 };
 var DEFAULT_CFG={title:'Roast & Toast',tagline:'[Name] turns 50. Tonight, you get to tell him exactly what you think.',finale:"Glasses up. Here's to [Name] at 50.",baseUrl:'',spotlightSecs:6,targetMins:15,theme:{preset:'stage',radius:18,align:'left',scale:1}};
-var KINDS=[['text','Short text answer'],['choice','Multiple choice (text)'],['photochoice','Multiple choice (photos)']];
-var DISPLAYS={text:[['cloud','Animated word cloud'],['wall','Caption wall'],['spotlight','Spotlight, one at a time'],['bars','Bars (top answers)']],choice:[['bars','Bars']],photochoice:[['photos','Photo tiles'],['bars','Bars']]};
+var KINDS=[['text','Text'],['choice','Multiple choice'],['photochoice','Photo choice']];
+var DISPLAYS={text:[['cloud','Word cloud'],['wall','Caption wall'],['spotlight','Spotlight'],['bars','Bars']],choice:[['bars','Bars']],photochoice:[['photos','Photo tiles'],['bars','Bars']]};
 var SAMPLE_SHORT=['Legend','Dad jokes','Always late','Heart of gold','Stubborn','Loyal','Snack lord','Chaos','Big hugs','Nap champion','Golden retriever','Bear','Sloth'];
 var SAMPLE_SHORT_W=[9,7,5,5,4,4,3,3,2,2,2,1,1];
 var SAMPLE_LONG=['May contain dad jokes. Cannot be removed.','Will explain it again, slower, even if you were right.','Keep away from karaoke machines.','Handle with hugs. He will insist.','Do not feed after midnight. Or before.','Not responsible for unsolicited advice.','Naps are non-negotiable after 2 pm.','Warning: tells the long version.','Always right. Ask him.'];
@@ -161,11 +161,12 @@ function cloudModule(el){
   function draw(){
     if(!items.length){box.innerHTML=emptyNote();nodes.clear();return}
     if(box.querySelector('.empty')){box.innerHTML='';nodes.clear()}
-    var W=box.clientWidth||900,H=box.clientHeight||380,out=layout(W,H),keep=new Set();
+    var W=box.clientWidth||900,H=box.clientHeight||380,out=layout(W,H),keep=new Set(),lo=items[items.length-1].count;
+    function tone(o,i){return i===0?0:(items.length>4&&o.it.count===lo&&lo<items[0].count?2:1)}
     out.forEach(function(o,i){
       keep.add(o.it.key);var n=nodes.get(o.it.key);
-      if(!n){n=document.createElement('div');n.className='w c'+(i===0?0:hash(o.it.key)%5);n.innerHTML='<span class="wi"></span>';n.firstChild.style.setProperty('--d',(-(hash(o.it.key)%60)/10)+'s');n.style.left=o.x+'px';n.style.top=o.y+'px';n.style.fontSize=o.fs+'px';box.appendChild(n);nodes.set(o.it.key,n)}
-      else{n.className=n.className.replace(/\bc\d\b/,'c'+(i===0?0:hash(o.it.key)%5))}
+      if(!n){n=document.createElement('div');n.className='w c'+tone(o,i);n.innerHTML='<span class="wi"></span>';n.firstChild.style.setProperty('--d',(-(hash(o.it.key)%60)/10)+'s');n.style.left=o.x+'px';n.style.top=o.y+'px';n.style.fontSize=o.fs+'px';box.appendChild(n);nodes.set(o.it.key,n)}
+      else{n.className=n.className.replace(/\bc\d\b/,'c'+tone(o,i))}
       n.firstChild.textContent=o.it.label;n.style.left=o.x+'px';n.style.top=o.y+'px';n.style.fontSize=o.fs+'px';
     });
     nodes.forEach(function(n,k){if(!keep.has(k)){n.remove();nodes.delete(k)}});
@@ -180,7 +181,7 @@ function barsModule(el){
     if(!items.length){box.innerHTML=emptyNote();sig='';return}
     var total=items.reduce(function(s,i){return s+i.count},0)||1,max=Math.max.apply(null,items.map(function(i){return i.count}))||1;
     var s=items.map(function(i){return i.key}).join('|'),rh=items.length>6?40:52;
-    if(s!==sig){sig=s;box.innerHTML=items.map(function(i,ix){return '<div class="brow" style="--h:'+rh+'px"><div class="blabel">'+esc(i.label)+'</div><div class="bwrap"><div class="bfill k'+(ix%4)+'"></div></div><div class="bpct"></div><div class="bvotes"></div></div>'}).join('');void box.offsetWidth}
+    if(s!==sig){sig=s;box.innerHTML=items.map(function(i,ix){return '<div class="brow" style="--h:'+rh+'px"><div class="blabel">'+esc(i.label)+'</div><div class="bwrap"><div class="bfill"></div></div><div class="bpct"></div><div class="bvotes"></div></div>'}).join('');void box.offsetWidth}
     $$('.brow',box).forEach(function(row,ix){var i=items[ix];row.classList.toggle('win',max>0&&i.count===max&&i.count>0);$('.bfill',row).style.width=(max?i.count/max*100:0)+'%';$('.bpct',row).textContent=Math.round(i.count/total*100)+'%';$('.bvotes',row).textContent=i.count+(i.count===1?' vote':' votes')});
   }};
 }
@@ -191,8 +192,8 @@ function photosModule(el){
     if(!n){box.innerHTML=emptyNote();return}
     var total=items.reduce(function(s,i){return s+i.count},0)||1,max=Math.max.apply(null,items.map(function(i){return i.count}));
     var s=items.map(function(i){return i.key+i.photo+i.label}).join('|');
-    if(s!==sig){sig=s;box.style.gridTemplateColumns='repeat('+(n<=4?n:3)+',minmax(0,1fr))';box.innerHTML=items.map(function(i,ix){return '<div class="ptile"><div class="pimg'+(i.photo?'':' ph')+'" '+(i.photo?'style="background-image:url('+blobUrl(i.photo)+')"':'')+'></div><div class="pfill"></div><span class="pcrown">WINNER</span><div class="pcap"><div><div class="plabel">'+String.fromCharCode(65+ix)+(i.label?' · '+esc(i.label):'')+'</div><div class="pv" style="font-size:14px;opacity:.9"></div></div><div class="ppct"></div></div></div>'}).join('');void box.offsetWidth}
-    $$('.ptile',box).forEach(function(t,ix){var i=items[ix];t.classList.toggle('win',max>0&&i.count===max);$('.pfill',t).style.height=(i.count/total*100)+'%';$('.ppct',t).textContent=Math.round(i.count/total*100)+'%';$('.pv',t).textContent=i.count+(i.count===1?' vote':' votes')});
+    if(s!==sig){sig=s;box.style.gridTemplateColumns='repeat('+(n<=4?n:3)+',minmax(0,1fr))';box.innerHTML=items.map(function(i,ix){return '<div class="ptile"><div class="pimg'+(i.photo?'':' ph')+'" '+(i.photo?'style="background-image:url('+blobUrl(i.photo)+')"':'')+'></div><div class="pcap"><div><div class="plabel">'+String.fromCharCode(65+ix)+(i.label?' · '+esc(i.label):'')+'</div><div class="pv"></div></div><div class="ppct"></div></div></div>'}).join('');void box.offsetWidth}
+    $$('.ptile',box).forEach(function(t,ix){var i=items[ix];t.classList.toggle('win',max>0&&i.count===max);$('.ppct',t).textContent=Math.round(i.count/total*100)+'%';$('.pv',t).textContent=i.count+(i.count===1?' vote':' votes')});
   }};
 }
 function wallModule(el){
@@ -208,15 +209,15 @@ function wallModule(el){
     var s=show.map(function(i){return i.key+i.count+(i===feat?'F':'')}).join('|');
     if(s===sig)return;sig=s;
     box.innerHTML=show.map(function(i){
-      var f=i===feat,len=i.label.length,fs=f?(len<60?38:28):(len<40?26:len<90?22:18),rot=((hash(i.key)%9)-4)*0.25,tcls=f?'feat':['','t1','','t2'][hash(i.key)%4];
+      var f=i===feat,len=i.label.length,fs=f?(len<60?38:28):(len<40?26:len<90?22:18);
       var isNew=!seen.has(i.key);
-      return '<div class="card '+tcls+'" style="font-size:'+fs+'px;transform:rotate('+rot+'deg);'+(isNew?'':'animation:none')+'">'+(f?'<span class="tag">HOST\'S PICK</span>':'')+esc(i.label)+(i.count>1?'<span class="x">×'+i.count+'</span>':'')+'</div>';
+      return '<div class="card'+(f?' feat':'')+'" style="font-size:'+fs+'px;'+(isNew?'':'animation:none')+'">'+esc(i.label)+(i.count>1?'<span class="x">×'+i.count+'</span>':'')+'</div>';
     }).join('');
     show.forEach(function(i){seen.add(i.key)});
   }};
 }
 function spotModule(el,c0){
-  el.innerHTML='<div class="spot"><div class="spot-mark" aria-hidden="true">“</div><div class="spot-text"></div><div class="spot-meta"></div></div>';
+  el.innerHTML='<div class="spot"><div class="spot-text"></div><div class="spot-meta"></div></div>';
   var tx=$('.spot-text',el),meta=$('.spot-meta',el),list=[],idx=0,sig='',timer=null,secs=(c0&&c0.cfg&&c0.cfg.spotlightSecs)||6;
   function show(){
     if(!list.length){tx.textContent='Waiting for answers…';tx.style.fontSize='34px';meta.textContent='';return}
@@ -239,11 +240,6 @@ function makeModule(kind,el,ctx){
 }
 
 /* ================= TV ================= */
-function fancyTitle(t){
-  var parts=esc(t).split(/\s*&amp;\s*/);
-  if(parts.length>1)return esc(parts[0].trim())+'<br><span style="color:var(--a1)">&amp;</span> <span style="color:var(--a2)">'+parts.slice(1).join(' &amp; ')+'</span>';
-  var w=esc(t).split(' ');if(w.length>1){var last=w.pop();return w.join(' ')+' <span style="color:var(--a2)">'+last+'</span>'}return esc(t);
-}
 function liveCtx(){
   var q=curQ();
   return {cfg:cfg(),th:theme(),q:q,idx:qIndex(),total:S.qs.length,phase:S.state.phase,locked:S.state.locked,answers:S.answers,mod:S.mod,guestsCount:S.guests.length,joinUrl:joinUrl()};
@@ -253,9 +249,7 @@ function qrInto(el,text,size,dark){
   try{new QRCode(el,{text:text,width:size,height:size,colorDark:dark||'#0B0B14',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M})}catch(e){el.textContent='QR unavailable'}
 }
 function headHTML(ctx){
-  var q=ctx.q,ac=q.accent||1,dots='';
-  for(var i=0;i<ctx.total;i++)dots+='<i class="'+(i<=ctx.idx?'on':'')+'"></i>';
-  return '<div class="tv-head" style="--ac:var(--a'+ac+')"><span class="pill" style="background:var(--a'+ac+');color:var(--on'+ac+')">'+esc(q.round||'')+'</span><div class="prog"><span>Question '+(ctx.idx+1)+' of '+ctx.total+'</span>'+dots+'</div></div>';
+  return '<div class="tv-head"><span class="round">'+esc(ctx.q.round||'')+'</span><span class="prog">'+(ctx.idx+1)+' / '+ctx.total+'</span></div>';
 }
 function photoPanel(q){
   if(!q.photo)return '';
@@ -271,23 +265,24 @@ function createTV(root){
   function build(ctx){
     var t=ctx.th,q=ctx.q,c=ctx.cfg;killMod();
     stage.className='stage pat-'+(t.pattern||'none')+(t.align==='center'?' al-center':'');
-    var rings=(t.pattern==='rings')?'<i class="ring r1"></i><i class="ring r2"></i><i class="ring r3"></i>':'';
+    var ac=(q&&q.accent)||1;stage.style.setProperty('--ac','var(--a'+ac+')');stage.style.setProperty('--onac','var(--on'+ac+')');
+    var rings=(t.pattern==='rings')?'<i class="ring r1"></i><i class="ring r2"></i>':'';
     var sc=t.scale||1;
     if(phase==='lobby'){
-      stage.innerHTML=rings+'<div class="lobby"><div class="lobby-l"><div><span class="pill" style="background:var(--a1);color:var(--on1)">Live party game</span></div><h1>'+fancyTitle(c.title)+'</h1><p>'+esc(c.tagline)+'</p><div class="steps"><div><b>1</b>Scan the code with your phone camera</div><div><b>2</b>No app, no sign-up. Just type or tap.</div><div><b>3</b>Answers are anonymous. Be funny, be kind.</div></div></div><div class="lobby-r"><div class="qr-card" data-k="qr"></div><div class="joinurl">'+esc(ctx.joinUrl)+'</div><div class="chip"><i></i><span data-k="guests"></span></div></div></div>';
+      stage.innerHTML=rings+'<div class="lobby"><div class="lobby-l"><h1>'+esc(c.title)+'</h1><p>'+esc(c.tagline)+'</p><p class="how">Scan to join. No app needed. Answers are anonymous.</p></div><div class="lobby-r"><div class="qr-card" data-k="qr"></div><div class="joinurl">'+esc(ctx.joinUrl)+'</div><div class="joined" data-k="guests"></div></div></div>';
       qrInto($('[data-k=qr]',stage),ctx.joinUrl,280);
     }else if(phase==='end'){
-      stage.innerHTML=rings+'<div class="end"><div class="pill" style="background:var(--a3);color:var(--on3)">'+esc(c.title)+'</div><svg width="84" height="84" viewBox="0 0 24 24" fill="none" stroke="var(--a2)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12l-1 8a5 5 0 0 1-10 0z"/><path d="M12 16v5M8 21h8"/></svg><h1>'+esc(c.finale)+'</h1></div>';
+      stage.innerHTML=rings+'<div class="end"><h1>'+esc(c.finale)+'</h1></div>';
     }else if(phase==='collect'){
-      var len=q.text.length,fs=(len<40?88:len<70?70:len<110?56:46)*sc,kick=q.kind==='text'?(q.exactWords?'Type your answer · exactly '+q.exactWords+' word'+(q.exactWords>1?'s':''):'Type your answer on your phone'):q.kind==='choice'?'Pick one on your phone':'Tap your pick on your phone';
+      var len=q.text.length,fs=(len<40?88:len<70?70:len<110?56:46)*sc,kick=q.kind==='text'?(q.exactWords?'Answer on your phone · exactly '+q.exactWords+' word'+(q.exactWords>1?'s':''):'Answer on your phone'):'Vote on your phone';
       var extra='';
       if(q.kind==='choice')extra='<div class="opt-row">'+(q.options||[]).map(function(o,i){return '<span class="opt-chip"><b>'+String.fromCharCode(65+i)+'</b>'+esc(o.label)+'</span>'}).join('')+'</div>';
       if(q.kind==='photochoice'){var n=(q.options||[]).length;extra='<div class="ptiles" style="grid-template-columns:repeat('+(n<=4?Math.max(n,1):3)+',minmax(0,1fr));height:250px">'+(q.options||[]).map(function(o,i){return '<div class="ptile"><div class="pimg'+(o.photo?'':' ph')+'" '+(o.photo?'style="background-image:url('+blobUrl(o.photo)+')"':'')+'></div><div class="pcap"><span class="plabel">'+String.fromCharCode(65+i)+(o.label?' · '+esc(o.label):'')+'</span></div></div>'}).join('')+'</div>'}
-      stage.innerHTML=rings+headHTML(ctx)+'<div class="c-body">'+photoPanel(q)+'<div class="c-main"><div class="kicker">'+esc(kick)+'</div><h1 class="q-h" style="font-size:'+(q.kind==='photochoice'?Math.min(fs,56):fs)+'px">'+esc(q.text)+'</h1>'+extra+'</div></div><div class="c-foot"><div class="count"><div class="big"><b data-k="ans">0</b><span>of <span data-k="tot">0</span> guests have answered</span></div><div class="dots" data-k="dots"></div></div><div style="display:flex;gap:18px;align-items:center"><div class="minqr"><div class="qrbox" data-k="mqr"></div><span>Late? Scan to join</span></div><span class="chip" data-k="lock"></span></div></div>';
+      stage.innerHTML=rings+headHTML(ctx)+'<div class="c-body">'+photoPanel(q)+'<div class="c-main"><div class="kicker">'+esc(kick)+'</div><h1 class="q-h" style="font-size:'+(q.kind==='photochoice'?Math.min(fs,56):fs)+'px">'+esc(q.text)+'</h1>'+extra+'</div></div><div class="c-foot"><div class="count"><b data-k="ans">0</b><span>of <span data-k="tot">0</span> answered</span><span class="closed" data-k="lock"></span></div><div class="minqr"><div class="qrbox" data-k="mqr"></div><span>Scan to join</span></div></div>';
       qrInto($('[data-k=mqr]',stage),ctx.joinUrl,76);
     }else{
       var kind=displayFor(q);
-      stage.innerHTML=rings+headHTML(ctx)+'<h2 class="q-h q-s" style="font-size:'+(44*sc)+'px">'+esc(q.text)+'</h2><div class="r-body">'+photoPanel(q)+'<div class="r-disp" data-k="disp"></div></div><div class="r-foot"><span class="chip" data-k="total"></span><span style="color:var(--muted);font-size:17px" data-k="hint"></span></div>';
+      stage.innerHTML=rings+headHTML(ctx)+'<h2 class="q-h q-s" style="font-size:'+(44*sc)+'px">'+esc(q.text)+'</h2><div class="r-body">'+photoPanel(q)+'<div class="r-disp" data-k="disp"></div></div><div class="r-foot"><span class="total" data-k="total"></span></div>';
       mod=makeModule(kind,$('[data-k=disp]',stage),ctx);
     }
   }
@@ -297,16 +292,14 @@ function createTV(root){
     var s=[phase,t.font,t.pattern,t.align,t.scale,t.radius,c.title,c.tagline,c.finale,ctx.joinUrl,q?JSON.stringify([q.id,q.text,q.round,q.accent,q.display,q.kind,q.photo,q.photoCaption,q.options,q.exactWords]):'',ctx.idx,ctx.total].join('§');
     if(s!==sig){sig=s;build(ctx)}
     var answered=new Set(ctx.answers.map(function(a){return a.g})).size,total=Math.max(ctx.guestsCount,answered);
-    if(phase==='lobby'){var gl=$('[data-k=guests]',stage);if(gl)gl.textContent=ctx.guestsCount+(ctx.guestsCount===1?' guest joined':' guests joined')}
+    if(phase==='lobby'){var gl=$('[data-k=guests]',stage);if(gl)gl.textContent=ctx.guestsCount+' joined'}
     if(phase==='collect'){
       $('[data-k=ans]',stage).textContent=answered;$('[data-k=tot]',stage).textContent=total;
-      var d=$('[data-k=dots]',stage),cap=Math.min(total,90),h='';for(var i=0;i<cap;i++)h+='<i class="'+(i<answered?'on':'')+'"></i>';if(d.dataset.h!==h){d.innerHTML=h;d.dataset.h=h}
-      $('[data-k=lock]',stage).textContent=ctx.locked?'Submissions closed':'Answers hidden until reveal';
+      $('[data-k=lock]',stage).textContent=ctx.locked?'Closed':'';
     }
     if(phase==='reveal'){
       var visible=ctx.answers.filter(function(a){return !((ctx.mod&&ctx.mod.hidden)||[]).includes(a.id)}).length;
       $('[data-k=total]',stage).textContent=visible+(visible===1?' answer':' answers');
-      var dk=displayFor(q);$('[data-k=hint]',stage).textContent=(q.kind==='text'&&q.merge!==false)?(dk==='cloud'?'Similar answers merged. Bigger means more people said it.':dk==='wall'?'Similar answers merged. ×2 means two people said it.':'Similar answers merged.'):'';
       if(mod&&mod.update)mod.update(ctx);
     }
   }
@@ -335,31 +328,31 @@ function createPlay(root,opts){
     if(!force&&s===sig)return;sig=s;
     var h=head(c);
     if(!q||c.phase==='lobby'){
-      h+='<div class="grow"></div><span class="badge" style="background:var(--a3);color:var(--on3)">You\'re in</span><h2>'+esc(cfg().tagline)+'</h2><p>Questions pop up here when the host starts each one. Keep an eye on the big screen too.</p><div class="grow"></div><div class="status"><i></i>Waiting for the host…</div>';
+      h+='<div class="grow"></div><h2>'+esc(cfg().tagline)+'</h2><div class="grow"></div><div class="status">You\'re in. Waiting for the host…</div>';
     }else if(c.phase==='end'){
-      h+='<div class="grow"></div><div class="bigtick" aria-hidden="true"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l-1 8a5 5 0 0 1-10 0z"/><path d="M12 16v5M8 21h8"/></svg></div><h2>'+esc(cfg().finale)+'</h2><div class="grow"></div>';
+      h+='<div class="grow"></div><h2>'+esc(cfg().finale)+'</h2><div class="grow"></div>';
     }else{
       var ac=q.accent||1;
-      h+='<span class="badge" style="background:var(--a'+ac+');color:var(--on'+ac+')">'+esc(q.round||'')+'</span>';
+      h+='<span class="round" style="color:var(--a'+ac+')">'+esc(q.round||'')+'</span>';
       if(q.photo)h+='<div class="qphoto"><div class="pimg" style="background-image:url('+blobUrl(q.photo)+')"></div></div>';
       h+='<h2>'+esc(q.text)+'</h2>';
       var maxK=q.kind==='text'?(q.maxPerGuest||1):1,canAnswer=c.phase==='collect'&&!c.locked&&(m.length<maxK||editing);
-      if(m.length&&!editing){h+='<div class="mine"><small style="display:block;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.08em;margin-bottom:4px">YOUR ANSWER'+(m.length>1?'S':'')+'</small>'+m.map(function(a){return esc(label(q,a.v))}).join('<br>')+'</div>'}
+      if(m.length&&!editing){h+='<div class="mine"><small>Your answer'+(m.length>1?'s':'')+'</small>'+m.map(function(a){return esc(label(q,a.v))}).join('<br>')+'</div>'}
       if(canAnswer){
         if(q.kind==='text'){
           var ml=q.maxLen||80;
-          h+='<div style="display:flex;flex-direction:column;gap:8px"><label class="l" for="ans">'+(m.length?'Add another answer ('+m.length+' of '+maxK+' used)':'Your answer')+'</label><textarea id="ans" maxlength="'+ml+'" placeholder="'+esc(q.hint||'Type here…')+'">'+esc(draft)+'</textarea><div class="meta"><span>Anonymous. Nobody sees your name.</span><span id="cnt">'+draft.length+'/'+ml+'</span></div><div class="err" id="err">'+esc(err)+'</div></div><div class="grow"></div><button class="pbtn" id="send" type="button">Send it</button>';
+          h+='<div style="display:flex;flex-direction:column;gap:8px"><label class="l" for="ans">'+(m.length?'Add another answer ('+m.length+' of '+maxK+' used)':'Your answer')+'</label><textarea id="ans" maxlength="'+ml+'" placeholder="'+esc(q.hint||'Type here…')+'">'+esc(draft)+'</textarea><div class="meta"><span>Anonymous</span><span id="cnt">'+draft.length+'/'+ml+'</span></div><div class="err" id="err">'+esc(err)+'</div></div><div class="grow"></div><button class="pbtn" id="send" type="button">Send</button>';
         }else if(q.kind==='choice'){
-          h+='<div class="opts">'+(q.options||[]).map(function(o,i){return '<button type="button" class="opt'+(selected===o.id?' sel':'')+'" data-o="'+esc(o.id)+'" aria-pressed="'+(selected===o.id)+'">'+esc(o.label||('Option '+(i+1)))+'</button>'}).join('')+'</div><div class="grow"></div><button class="pbtn" id="send" type="button"'+(selected?'':' disabled')+'>Lock in my vote</button>';
+          h+='<div class="opts">'+(q.options||[]).map(function(o,i){return '<button type="button" class="opt'+(selected===o.id?' sel':'')+'" data-o="'+esc(o.id)+'" aria-pressed="'+(selected===o.id)+'">'+esc(o.label||('Option '+(i+1)))+'</button>'}).join('')+'</div><div class="grow"></div><button class="pbtn" id="send" type="button"'+(selected?'':' disabled')+'>Vote</button>';
         }else{
-          h+='<div class="popts">'+(q.options||[]).map(function(o,i){return '<button type="button" class="popt'+(selected===o.id?' sel':'')+'" data-o="'+esc(o.id)+'" aria-pressed="'+(selected===o.id)+'" aria-label="Photo '+String.fromCharCode(65+i)+(o.label?', '+esc(o.label):'')+'"><div class="pimg'+(o.photo?'':' ph')+'" '+(o.photo?'style="background-image:url('+blobUrl(o.photo)+')"':'')+'></div><span class="tick">✓</span><div class="cap">'+String.fromCharCode(65+i)+(o.label?' · '+esc(o.label):'')+'</div></button>'}).join('')+'</div><div class="grow"></div><button class="pbtn" id="send" type="button"'+(selected?'':' disabled')+'>Lock in my pick</button>';
+          h+='<div class="popts">'+(q.options||[]).map(function(o,i){return '<button type="button" class="popt'+(selected===o.id?' sel':'')+'" data-o="'+esc(o.id)+'" aria-pressed="'+(selected===o.id)+'" aria-label="Photo '+String.fromCharCode(65+i)+(o.label?', '+esc(o.label):'')+'"><div class="pimg'+(o.photo?'':' ph')+'" '+(o.photo?'style="background-image:url('+blobUrl(o.photo)+')"':'')+'></div><span class="tick">✓</span><div class="cap">'+String.fromCharCode(65+i)+(o.label?' · '+esc(o.label):'')+'</div></button>'}).join('')+'</div><div class="grow"></div><button class="pbtn" id="send" type="button"'+(selected?'':' disabled')+'>Vote</button>';
         }
       }else if(c.phase==='collect'&&c.locked){
-        h+='<div class="grow"></div><div class="status"><i></i>Submissions are closed.</div>';
+        h+='<div class="grow"></div><div class="status">Closed.</div>';
       }else if(c.phase==='reveal'){
-        h+='<div class="grow"></div><div class="status"><i></i>Eyes up. Results are on the big screen.</div>';
+        h+='<div class="grow"></div><div class="status">Results are on the TV.</div>';
       }else if(m.length&&c.phase==='collect'&&!editing){
-        h+='<div class="grow"></div><div class="status"><i></i>Locked in. Waiting for the reveal.</div>';
+        h+='<div class="grow"></div><div class="status">Sent. Results show on the TV.</div>';
       }
       if(c.phase==='collect'&&!c.locked&&m.length&&!editing&&maxK===1)h+='<button class="pbtn ghost" id="chg" type="button">Change my answer</button>';
     }
@@ -453,7 +446,7 @@ async function removeSim(){
 function createHost(root){
   if(!S.canEdit)return createLogin(root);
   var H={tab:'edit',edit:null,pv:'live',tv:null,ph:null,pend:{}};
-  root.innerHTML='<div class="host"><header class="h-bar"><div class="h-brand">Roast &amp; Toast <span class="muted" style="font-weight:500;font-size:14px;font-family:DM Sans,sans-serif">host console</span></div><div class="h-chips" id="chips"></div></header><div class="h-grid"><section class="h-col" id="col-l"><div class="h-title"><span>Run of show</span><span id="runlen"></span></div><div id="qlist" style="display:flex;flex-direction:column;gap:4px"></div><button class="hbtn" id="addq" type="button">+ Add question</button></section><section class="h-col" id="col-m"><div class="h-pv"><div class="pv-tv"><div class="seg" role="group" aria-label="Screen preview"><button type="button" data-pv="live">Live screen</button><button type="button" data-pv="collect">Selected: collecting</button><button type="button" data-pv="results">Selected: results</button></div><div class="pv-box" id="pvtv"></div></div><div class="pv-phone"><div class="seg" style="visibility:hidden"><button>x</button></div><div class="pv-ph"><div class="scaler" id="pvph"></div></div></div></div><div class="h-ctl" id="ctl"></div><div class="cue" id="cue" hidden></div><div><div class="h-title" style="margin-bottom:8px"><span>Answers on the live question</span><span id="mcount"></span></div><div class="mlist" id="modlist"></div></div></section><section class="h-col" id="col-r"><div class="tabs" role="tablist"><button type="button" data-tab="edit" role="tab">Question</button><button type="button" data-tab="look" role="tab">Look &amp; feel</button><button type="button" data-tab="share" role="tab">Share &amp; tools</button></div><div id="panel" style="display:flex;flex-direction:column;gap:14px"></div></section></div></div>';
+  root.innerHTML='<div class="host"><header class="h-bar"><div class="h-brand">'+esc(cfg().title)+' <span>Host</span></div><div class="h-chips" id="chips"></div></header><div class="h-grid"><section class="h-col" id="col-l"><div class="h-title"><span>Questions</span><span id="runlen"></span></div><div id="qlist" class="qlist"></div><button class="hbtn sm" id="addq" type="button">Add question</button></section><section class="h-col" id="col-m"><div class="h-ctl" id="ctl"></div><div class="cue" id="cue" hidden></div><div class="h-pv"><div class="pv-tv"><div class="seg" role="group" aria-label="Preview"><button type="button" data-pv="live">Live</button><button type="button" data-pv="collect">Selected question</button><button type="button" data-pv="results">Selected results</button></div><div class="pv-box" id="pvtv"></div></div><div class="pv-phone"><div class="pv-ph"><div class="scaler" id="pvph"></div></div></div></div><div class="h-sec"><div class="h-title"><span>Answers</span><span id="mcount"></span></div><div class="mlist" id="modlist"></div></div></section><section class="h-col" id="col-r"><div class="tabs" role="tablist"><button type="button" data-tab="edit" role="tab">Question</button><button type="button" data-tab="look" role="tab">Theme</button><button type="button" data-tab="share" role="tab">Setup</button></div><div id="panel" class="panel"></div></section></div></div>';
   var $r=function(s){return $(s,root)};
   H.tv=createTV($r('#pvtv'));
   H.ph=createPlay($r('#pvph'),{preview:true,ctx:function(){
@@ -461,6 +454,7 @@ function createHost(root){
     var q=S.qs.find(function(x){return x.id===H.edit});return {q:q||null,phase:q?'collect':'lobby',locked:false};
   }});
   function selQ(){return S.qs.find(function(x){return x.id===H.edit})||null}
+  function dispLabel(q){var d=displayFor(q),l=(DISPLAYS[q.kind]||DISPLAYS.text).find(function(x){return x[0]===d});return l?l[1]:d}
   function pvCtx(){
     var q=selQ();
     if(H.pv==='live'||!q)return liveCtx();
@@ -470,33 +464,34 @@ function createHost(root){
   }
   /* --- top chips --- */
   function updChips(){
-    var u=baseUrl();
-    $r('#chips').innerHTML='<span class="hc"><b>'+S.guests.length+'</b> guests joined</span><span class="hc"><b>'+S.qs.length+'</b> questions</span><button class="hbtn sm" type="button" data-copy="'+esc(u+'#tv')+'">Copy TV link</button><button class="hbtn sm" type="button" data-copy="'+esc(u+'#play')+'">Copy guest link</button><button class="hbtn sm" type="button" data-signout="1">Sign out</button>';
-    $r('#runlen').textContent=S.qs.length+' slides';
+    var h='<span class="muted">'+S.guests.length+(S.guests.length===1?' guest':' guests')+'</span><button class="lnk" type="button" data-signout="1">Sign out</button>';
+    if($r('#chips').dataset.h!==h){$r('#chips').innerHTML=h;$r('#chips').dataset.h=h}
+    var bt=$r('.h-brand');if(bt.firstChild.nodeValue!==cfg().title+' ')bt.firstChild.nodeValue=cfg().title+' ';
+    $r('#runlen').textContent=S.qs.length;
   }
   /* --- list --- */
   function updList(){
     var h='';
     S.qs.forEach(function(q,i){
       var live=q.id===S.state.qid&&S.state.phase!=='lobby';
-      h+='<div class="qrow'+(q.id===H.edit?' sel':'')+(live?' live':'')+'" data-q="'+q.id+'" role="button" tabindex="0" aria-label="Edit question '+(i+1)+'"><span class="no">'+(i+1)+'</span><span class="tx"><b>'+esc(q.text)+'</b><small>'+esc(q.round||'')+' · '+({text:'text',choice:'choice',photochoice:'photo choice'}[q.kind]||'')+' · '+esc(displayFor(q))+'</small></span>'+(live?'<span class="livebadge">LIVE</span>':'<button class="golive" type="button" data-go="'+q.id+'">Go live</button>')+'<span class="mv"><button class="ib" type="button" data-mv="-1" data-id="'+q.id+'" aria-label="Move up">▲</button><button class="ib" type="button" data-mv="1" data-id="'+q.id+'" aria-label="Move down">▼</button></span></div>';
+      h+='<div class="qrow'+(q.id===H.edit?' sel':'')+(live?' live':'')+'" data-q="'+q.id+'" role="button" tabindex="0" aria-label="Edit question '+(i+1)+(live?', live':'')+'"><span class="no">'+(i+1)+'</span><span class="tx"><b>'+esc(q.text)+'</b><small>'+(live?'<em>Live</em> · ':'')+esc(q.round||'')+' · '+esc(dispLabel(q))+'</small></span>'+(live?'':'<button class="golive" type="button" data-go="'+q.id+'">Go live</button>')+'<span class="mv"><button class="ib" type="button" data-mv="-1" data-id="'+q.id+'" aria-label="Move up">↑</button><button class="ib" type="button" data-mv="1" data-id="'+q.id+'" aria-label="Move down">↓</button></span></div>';
     });
-    if(!S.qs.length)h='<p class="muted">No questions yet. Add one to begin.</p>';
+    if(!S.qs.length)h='<p class="muted">No questions yet.</p>';
     if($r('#qlist').dataset.h!==h){$r('#qlist').innerHTML=h;$r('#qlist').dataset.h=h}
   }
   /* --- controls --- */
   function updCtl(){
     var q=curQ(),i=qIndex(),ph=S.state.phase,answered=new Set(S.answers.map(function(a){return a.g})).size,tot=Math.max(S.guests.length,answered);
-    var st,pri='',sec='';
-    if(ph==='lobby'||!q){st='<b>Lobby</b><span class="muted">Guests are joining. '+S.guests.length+' in.</span>';pri='<button class="hbtn pri" type="button" data-act="start0"'+(S.qs.length?'':' disabled')+'>Start game: question 1</button>'}
-    else if(ph==='collect'){st='<b>Q'+(i+1)+' · collecting</b><span class="muted">'+answered+' of '+tot+' answered'+(S.state.locked?' · closed':'')+'</span>';pri='<button class="hbtn pri" type="button" data-act="reveal">Reveal answers</button><button class="hbtn" type="button" data-act="lock">'+(S.state.locked?'Reopen submissions':'Close submissions')+'</button>'}
-    else if(ph==='reveal'){st='<b>Q'+(i+1)+' · results on screen</b><span class="muted">'+answered+' answered</span>';pri='<button class="hbtn pri" type="button" data-act="next">'+(i+1<S.qs.length?'Next question →':'Finale →')+'</button><button class="hbtn" type="button" data-act="reopen">Reopen collecting</button>'}
-    else{st='<b>Finale</b><span class="muted">Final toast screen is up.</span>';pri='<button class="hbtn pri" type="button" data-act="lobby">Back to lobby</button>'}
-    sec='<button class="hbtn sm" type="button" data-act="prev"'+(i>0||(ph==='end'&&q)?'':' disabled')+'>← Previous</button><button class="hbtn sm" type="button" data-act="lobby">Lobby</button><button class="hbtn sm" type="button" data-act="finale">Finale screen</button>';
-    var h='<div class="st">'+st+'<span class="clock" data-k="clock" title="Time since the game started, against your target. Only you see this."></span></div><div class="btns">'+pri+'</div><div class="btns">'+sec+'</div><small class="muted">Keyboard: → or Space advances, ← goes back.</small>';
+    var st,pri='';
+    if(ph==='lobby'||!q){st='<b>Lobby</b><span class="muted">Waiting to start</span>';pri='<button class="hbtn pri" type="button" data-act="start0"'+(S.qs.length?'':' disabled')+'>Start game</button>'}
+    else if(ph==='collect'){st='<b>Question '+(i+1)+' of '+S.qs.length+'</b><span class="muted">'+answered+' of '+tot+' answered'+(S.state.locked?', closed':'')+'</span>';pri='<button class="hbtn pri" type="button" data-act="reveal">Reveal answers</button><button class="hbtn" type="button" data-act="lock">'+(S.state.locked?'Reopen answers':'Close answers')+'</button>'}
+    else if(ph==='reveal'){st='<b>Question '+(i+1)+' of '+S.qs.length+'</b><span class="muted">Results showing, '+answered+' answered</span>';pri='<button class="hbtn pri" type="button" data-act="next">'+(i+1<S.qs.length?'Next question':'Finale')+'</button><button class="hbtn" type="button" data-act="reopen">Reopen answers</button>'}
+    else{st='<b>Finale</b><span class="muted">Toast screen showing</span>';pri='<button class="hbtn pri" type="button" data-act="lobby">Back to lobby</button>'}
+    var sec='<button class="lnk" type="button" data-act="prev"'+(i>0||(ph==='end'&&q)?'':' disabled')+'>Back</button><button class="lnk" type="button" data-act="lobby"'+(ph==='lobby'||!q?' disabled':'')+'>Lobby</button><button class="lnk" type="button" data-act="finale"'+(ph==='end'?' disabled':'')+'>Finale</button><span class="kbd" aria-hidden="true">→ or Space: next · ←: back</span>';
+    var h='<div class="st">'+st+'<span class="clock" data-k="clock" title="Elapsed against your target. Only you see this."></span></div><div class="btns">'+pri+'</div><div class="sub">'+sec+'</div>';
     if($r('#ctl').dataset.h!==h){$r('#ctl').innerHTML=h;$r('#ctl').dataset.h=h}
     updClock();
-    var cue=$r('#cue');if(q&&q.cue&&ph!=='lobby'){cue.hidden=false;cue.innerHTML='<b>HOST CUE</b>'+esc(q.cue)}else cue.hidden=true;
+    var cue=$r('#cue');if(q&&q.cue&&ph!=='lobby'&&ph!=='end'){cue.hidden=false;cue.innerHTML='<b>Cue</b>'+esc(q.cue)}else cue.hidden=true;
   }
   function updClock(){
     var el=$r('[data-k=clock]');if(!el)return;var st=S.state,tm=(cfg().targetMins||15)*60000;
@@ -506,10 +501,10 @@ function createHost(root){
   var clockT=setInterval(updClock,1000);
   function updMod(){
     var q=curQ(),box=$r('#modlist');
-    if(!q||q.kind!=='text'){box.innerHTML='<p class="muted" style="margin:0">'+(q?'Votes show as bars. Nothing to moderate.':'Go live on a question to see answers here.')+'</p>';$r('#mcount').textContent='';return}
+    if(!q||q.kind!=='text'){var m='<p class="muted">'+(q?'Votes only. Nothing to moderate.':'No live question.')+'</p>';if(box.dataset.h!==m){box.innerHTML=m;box.dataset.h=m}$r('#mcount').textContent='';return}
     var hid=new Set(S.mod.hidden||[]),rows=S.answers.slice().sort(function(a,b){return (b.t||0)-(a.t||0)}).slice(0,120);
-    $r('#mcount').textContent=S.answers.length+' answers';
-    var h=rows.map(function(a){return '<div class="mrow'+(hid.has(a.id)?' hid':'')+(S.mod.featured===a.id?' feat':'')+'"><span>'+esc(a.v)+'</span><button class="ib" style="width:auto;padding:0 8px" type="button" data-feat="'+esc(a.id)+'" aria-label="Feature this answer">'+(S.mod.featured===a.id?'★ Picked':'☆ Pick')+'</button><button class="ib" style="width:auto;padding:0 8px" type="button" data-hide="'+esc(a.id)+'" aria-label="Hide or show this answer">'+(hid.has(a.id)?'Show':'Hide')+'</button></div>'}).join('')||'<p class="muted" style="margin:0">No answers yet.</p>';
+    $r('#mcount').textContent=S.answers.length;
+    var h=rows.map(function(a){var f=S.mod.featured===a.id,hd=hid.has(a.id);return '<div class="mrow'+(hd?' hid':'')+(f?' feat':'')+'"><span>'+esc(a.v)+'</span><button class="lnk" type="button" data-feat="'+esc(a.id)+'" aria-pressed="'+f+'" aria-label="Pick this answer for the big card">'+(f?'Picked':'Pick')+'</button><button class="lnk" type="button" data-hide="'+esc(a.id)+'" aria-label="'+(hd?'Show':'Hide')+' this answer">'+(hd?'Show':'Hide')+'</button></div>'}).join('')||'<p class="muted">No answers yet.</p>';
     if(box.dataset.h!==h){box.innerHTML=h;box.dataset.h=h}
   }
   function updSeg(){$$('[data-pv]',root).forEach(function(b){b.classList.toggle('on',b.dataset.pv===H.pv)});$$('[data-tab]',root).forEach(function(b){b.classList.toggle('on',b.dataset.tab===H.tab);b.setAttribute('aria-selected',b.dataset.tab===H.tab)})}
@@ -517,24 +512,24 @@ function createHost(root){
   /* --- question editor --- */
   function optRows(q){
     var ph=q.kind==='photochoice';
-    return (q.options||[]).map(function(o,i){return '<div class="orow">'+(ph?'<button type="button" class="thumb" data-optphoto="'+i+'" style="'+(o.photo?'background-image:url('+blobUrl(o.photo)+')':'')+'" aria-label="Upload photo for option '+(i+1)+'">'+(o.photo?'':'Add photo')+'</button>':'')+'<input type="text" data-opt="'+i+'" value="'+esc(o.label)+'" placeholder="'+(ph?'Caption (optional)':'Option '+(i+1))+'" aria-label="Option '+(i+1)+' label"><button type="button" class="ib" data-optdel="'+i+'" aria-label="Remove option">✕</button></div>'}).join('');
+    return (q.options||[]).map(function(o,i){return '<div class="orow">'+(ph?'<button type="button" class="thumb" data-optphoto="'+i+'" style="'+(o.photo?'background-image:url('+blobUrl(o.photo)+')':'')+'" aria-label="Upload photo for option '+(i+1)+'">'+(o.photo?'':'Add')+'</button>':'')+'<input type="text" data-opt="'+i+'" value="'+esc(o.label)+'" placeholder="'+(ph?'Caption':'Option '+(i+1))+'" aria-label="Option '+(i+1)+' label"><button type="button" class="ib" data-optdel="'+i+'" aria-label="Remove option '+(i+1)+'">×</button></div>'}).join('');
   }
   function buildEditor(){
     var q=selQ(),p=$r('#panel');
-    if(!q){p.innerHTML='<p class="muted">Pick a question from the run of show, or add a new one.</p>';return}
-    var isText=q.kind==='text',ph=q.kind==='photochoice';
-    var sw=[1,2,3].map(function(n){return '<button type="button" class="'+(q.accent===n?'on':'')+'" data-acc="'+n+'" style="background:var(--a'+n+')" aria-label="Round color '+n+'"></button>'}).join('');
+    if(!q){p.innerHTML='<p class="muted">Select a question to edit.</p>';return}
+    var isText=q.kind==='text';
+    var sw=[1,2,3].map(function(n){return '<button type="button" class="'+(q.accent===n?'on':'')+'" data-acc="'+n+'" style="background:var(--a'+n+')" aria-label="Round color '+n+'" aria-pressed="'+(q.accent===n)+'"></button>'}).join('');
     p.innerHTML=
-    '<div class="f"><label for="f-round">Round name</label><input id="f-round" type="text" data-f="round" value="'+esc(q.round)+'"></div>'+
-    '<div class="f"><span class="lbl">Round color</span><div class="sw">'+sw+'</div></div>'+
-    '<div class="f"><label for="f-text">Question</label><textarea id="f-text" data-f="text" rows="3">'+esc(q.text)+'</textarea></div>'+
-    '<div class="frow"><div class="f"><label for="f-kind">Guests answer by</label><select id="f-kind" data-f="kind">'+KINDS.map(function(k){return '<option value="'+k[0]+'"'+(k[0]===q.kind?' selected':'')+'>'+k[1]+'</option>'}).join('')+'</select></div><div class="f"><label for="f-display">Results shown as</label><select id="f-display" data-f="display">'+(DISPLAYS[q.kind]||[]).map(function(k){return '<option value="'+k[0]+'"'+(k[0]===displayFor(q)?' selected':'')+'>'+k[1]+'</option>'}).join('')+'</select></div></div>'+
-    (isText?'':'<div class="f"><span class="lbl">'+(ph?'Photo choices (2 to 6)':'Choices (2 to 8)')+'</span><div id="opts" style="display:flex;flex-direction:column;gap:8px">'+optRows(q)+'</div><button type="button" class="hbtn sm" id="addopt" style="align-self:flex-start">+ Add choice</button>'+(ph?'<small>Upload one photo per choice. Guests see them as a 2-column grid on their phone.</small>':'')+'</div>')+
-    (isText?'<div class="frow"><div class="f"><label for="f-max">Max characters</label><input id="f-max" type="number" min="5" max="200" data-f="maxLen" value="'+(q.maxLen||60)+'"></div><div class="f"><label for="f-words">Exact word count</label><input id="f-words" type="number" min="0" max="10" data-f="exactWords" value="'+(q.exactWords||0)+'"><small>0 means any length.</small></div></div><div class="frow"><div class="f"><label for="f-per">Answers per guest</label><input id="f-per" type="number" min="1" max="5" data-f="maxPerGuest" value="'+(q.maxPerGuest||1)+'"></div><div class="f"><label for="f-hint">Placeholder</label><input id="f-hint" type="text" data-f="hint" value="'+esc(q.hint||'')+'"></div></div><label class="chk"><input type="checkbox" data-f="merge"'+(q.merge!==false?' checked':'')+'> Merge similar answers (capitals, plurals, "the")</label>':'')+
-    '<div class="hr"></div><div class="f"><span class="lbl">Photo shown with the question</span><div class="orow"><button type="button" class="thumb" data-qphoto="1" style="width:72px;height:72px;'+(q.photo?'background-image:url('+blobUrl(q.photo)+')':'')+'" aria-label="Upload question photo">'+(q.photo?'':'Add photo')+'</button><div style="display:flex;flex-direction:column;gap:6px;flex:1"><input type="text" data-f="photoCaption" value="'+esc(q.photoCaption||'')+'" placeholder="Caption, e.g. Exhibit A" aria-label="Photo caption">'+(q.photo?'<button type="button" class="hbtn sm" data-qphoto-del="1" style="align-self:flex-start">Remove photo</button>':'')+'</div></div></div>'+
-    '<div class="f"><label for="f-cue">Host cue (only you see it)</label><textarea id="f-cue" data-f="cue" rows="2">'+esc(q.cue||'')+'</textarea></div>'+
-    '<div class="frow"><button class="hbtn" type="button" id="dup">Duplicate</button><button class="hbtn dng" type="button" id="del">Delete</button></div>';
+    '<div class="f"><label for="f-text">Question</label><textarea id="f-text" data-f="text" rows="2">'+esc(q.text)+'</textarea></div>'+
+    '<div class="frow"><div class="f"><label for="f-round">Round</label><input id="f-round" type="text" data-f="round" value="'+esc(q.round)+'"></div><div class="f fit"><span class="lbl">Color</span><div class="sw">'+sw+'</div></div></div>'+
+    '<div class="frow"><div class="f"><label for="f-kind">Answer type</label><select id="f-kind" data-f="kind">'+KINDS.map(function(k){return '<option value="'+k[0]+'"'+(k[0]===q.kind?' selected':'')+'>'+k[1]+'</option>'}).join('')+'</select></div><div class="f"><label for="f-display">Results</label><select id="f-display" data-f="display">'+(DISPLAYS[q.kind]||[]).map(function(k){return '<option value="'+k[0]+'"'+(k[0]===displayFor(q)?' selected':'')+'>'+k[1]+'</option>'}).join('')+'</select></div></div>'+
+    (isText?'':'<div class="f"><span class="lbl">Choices</span><div id="opts" class="opts-ed">'+optRows(q)+'</div><button type="button" class="lnk" id="addopt">Add choice</button></div>')+
+    '<div class="f"><span class="lbl">Photo</span><div class="orow"><button type="button" class="thumb lg" data-qphoto="1" style="'+(q.photo?'background-image:url('+blobUrl(q.photo)+')':'')+'" aria-label="'+(q.photo?'Replace':'Upload')+' question photo">'+(q.photo?'':'Add')+'</button><div class="ocol"><input type="text" data-f="photoCaption" value="'+esc(q.photoCaption||'')+'" placeholder="Caption" aria-label="Photo caption">'+(q.photo?'<button type="button" class="lnk" data-qphoto-del="1">Remove photo</button>':'')+'</div></div></div>'+
+    '<div class="f"><label for="f-cue">Host cue</label><textarea id="f-cue" data-f="cue" rows="2" placeholder="Only you see this">'+esc(q.cue||'')+'</textarea></div>'+
+    (isText?'<details class="more" id="more"'+(H.more?' open':'')+'><summary>More options</summary><div class="more-b"><div class="frow"><div class="f"><label for="f-max">Max length</label><input id="f-max" type="number" min="5" max="200" data-f="maxLen" value="'+(q.maxLen||60)+'"></div><div class="f"><label for="f-words">Exact words</label><input id="f-words" type="number" min="0" max="10" data-f="exactWords" value="'+(q.exactWords||0)+'" aria-describedby="f-words-h"><small id="f-words-h">0 = any</small></div></div><div class="frow"><div class="f"><label for="f-per">Answers per guest</label><input id="f-per" type="number" min="1" max="5" data-f="maxPerGuest" value="'+(q.maxPerGuest||1)+'"></div><div class="f"><label for="f-hint">Hint text</label><input id="f-hint" type="text" data-f="hint" value="'+esc(q.hint||'')+'"></div></div><label class="chk"><input type="checkbox" data-f="merge"'+(q.merge!==false?' checked':'')+'> Merge similar answers</label></div></details>':'')+
+    '<div class="ed-foot"><button class="lnk" type="button" id="dup">Duplicate</button><button class="lnk dng" type="button" id="del">Delete</button></div>';
     var d=$r('#del');if(d)confirmBtn(d,'Delete',async function(){var id=q.id;H.edit=null;try{await DB.doc('questions/'+id).delete()}catch(e){toast('Could not delete.')}if(S.state.qid===id)setState({qid:null,phase:'lobby'});buildEditor()});
+    var mo=$r('#more');if(mo)mo.addEventListener('toggle',function(){H.more=mo.open});
   }
   var flush=debounce(function(){var id=H.edit;if(!id)return;var pat=H.pend;H.pend={};if(Object.keys(pat).length)saveQ(id,pat)},400);
   function editPatch(patch,now){
@@ -545,24 +540,26 @@ function createHost(root){
   function buildLook(){
     var t=theme(),p=$r('#panel');
     var cols=[['bg','Background'],['surface','Cards'],['line','Lines'],['text','Text'],['muted','Soft text'],['a1','Accent 1'],['a2','Accent 2'],['a3','Accent 3']];
-    p.innerHTML='<div class="f"><span class="lbl">Presets</span><div class="presets">'+Object.keys(PRESETS).map(function(k){var s=PRESETS[k];return '<button type="button" class="preset'+(t.preset===k?' on':'')+'" data-preset="'+k+'"><div class="st">'+[s.bg,s.surface,s.a1,s.a2,s.a3].map(function(c){return '<i style="background:'+c+'"></i>'}).join('')+'</div>'+esc(s.name)+'</button>'}).join('')+'</div></div><div class="hr"></div><div class="cols">'+cols.map(function(c){return '<div class="f"><label for="c-'+c[0]+'">'+c[1]+'</label><input id="c-'+c[0]+'" type="color" data-color="'+c[0]+'" value="'+t[c[0]]+'"></div>'}).join('')+'</div><div class="hr"></div>'+
-    '<div class="f"><label for="t-font">Type pairing</label><select id="t-font" data-th="font">'+Object.keys(FONT_PAIRS).map(function(k){return '<option value="'+k+'"'+(t.font===k?' selected':'')+'>'+FONT_PAIRS[k].name+'</option>'}).join('')+'</select></div>'+
-    '<div class="frow"><div class="f"><label for="t-pat">Background</label><select id="t-pat" data-th="pattern">'+[['none','Plain'],['dots','Dots'],['grid','Grid'],['rings','Rings']].map(function(k){return '<option value="'+k[0]+'"'+(t.pattern===k[0]?' selected':'')+'>'+k[1]+'</option>'}).join('')+'</select></div><div class="f"><label for="t-al">Question alignment</label><select id="t-al" data-th="align"><option value="left"'+(t.align==='left'?' selected':'')+'>Left</option><option value="center"'+(t.align==='center'?' selected':'')+'>Centered</option></select></div></div>'+
-    '<div class="f"><label for="t-rad">Corner roundness: <span id="rv">'+t.radius+'</span>px</label><input id="t-rad" type="range" min="0" max="36" value="'+t.radius+'" data-thn="radius"></div>'+
-    '<div class="f"><label for="t-sc">Question text size: <span id="sv">'+Math.round((t.scale||1)*100)+'</span>%</label><input id="t-sc" type="range" min="70" max="130" value="'+Math.round((t.scale||1)*100)+'" data-thn="scale"></div>'+
-    '<div class="f"><label for="t-spot">Spotlight seconds per answer</label><input id="t-spot" type="number" min="3" max="20" value="'+(cfg().spotlightSecs||6)+'" data-cfgn="spotlightSecs"></div>';
+    p.innerHTML='<div class="f"><span class="lbl">Preset</span><div class="presets">'+Object.keys(PRESETS).map(function(k){var s=PRESETS[k];return '<button type="button" class="preset'+(t.preset===k?' on':'')+'" data-preset="'+k+'" aria-pressed="'+(t.preset===k)+'"><div class="st">'+[s.bg,s.a1,s.a2,s.a3].map(function(c){return '<i style="background:'+c+'"></i>'}).join('')+'</div>'+esc(s.name)+'</button>'}).join('')+'</div></div>'+
+    '<div class="f"><label for="t-font">Fonts</label><select id="t-font" data-th="font">'+Object.keys(FONT_PAIRS).map(function(k){return '<option value="'+k+'"'+(t.font===k?' selected':'')+'>'+FONT_PAIRS[k].name+'</option>'}).join('')+'</select></div>'+
+    '<div class="frow"><div class="f"><label for="t-pat">Pattern</label><select id="t-pat" data-th="pattern">'+[['none','Plain'],['dots','Dots'],['grid','Grid'],['rings','Rings']].map(function(k){return '<option value="'+k[0]+'"'+(t.pattern===k[0]?' selected':'')+'>'+k[1]+'</option>'}).join('')+'</select></div><div class="f"><label for="t-al">Alignment</label><select id="t-al" data-th="align"><option value="left"'+(t.align==='left'?' selected':'')+'>Left</option><option value="center"'+(t.align==='center'?' selected':'')+'>Centered</option></select></div></div>'+
+    '<div class="frow"><div class="f"><label for="t-rad">Corners: <span id="rv">'+t.radius+'</span>px</label><input id="t-rad" type="range" min="0" max="36" value="'+t.radius+'" data-thn="radius"></div><div class="f"><label for="t-sc">Text size: <span id="sv">'+Math.round((t.scale||1)*100)+'</span>%</label><input id="t-sc" type="range" min="70" max="130" value="'+Math.round((t.scale||1)*100)+'" data-thn="scale"></div></div>'+
+    '<div class="f"><label for="t-spot">Spotlight seconds per answer</label><input id="t-spot" type="number" min="3" max="20" value="'+(cfg().spotlightSecs||6)+'" data-cfgn="spotlightSecs"></div>'+
+    '<details class="more" id="morec"'+(H.moreC?' open':'')+'><summary>Custom colors</summary><div class="more-b"><div class="cols">'+cols.map(function(c){return '<div class="f"><label for="c-'+c[0]+'">'+c[1]+'</label><input id="c-'+c[0]+'" type="color" data-color="'+c[0]+'" value="'+t[c[0]]+'"></div>'}).join('')+'</div></div></details>';
+    var mc=$r('#morec');mc.addEventListener('toggle',function(){H.moreC=mc.open});
   }
   /* --- share panel --- */
   function buildShare(){
     var c=cfg(),u=baseUrl(),p=$r('#panel');
-    p.innerHTML='<div class="f"><label for="g-title">Game title</label><input id="g-title" type="text" data-cfg="title" value="'+esc(c.title)+'"></div><div class="f"><label for="g-tag">Welcome line</label><textarea id="g-tag" rows="2" data-cfg="tagline">'+esc(c.tagline)+'</textarea></div><div class="f"><label for="g-fin">Finale message</label><textarea id="g-fin" rows="2" data-cfg="finale">'+esc(c.finale)+'</textarea></div><div class="f"><label for="g-target">Game length target (minutes)</label><input id="g-target" type="number" min="1" max="120" value="'+(c.targetMins||15)+'" data-cfgn="targetMins"><small>The clock in your controls counts against this. Guests and the TV never see it.</small></div><div class="hr"></div>'+
-    '<div class="f"><label for="g-base">Page address</label><input id="g-base" type="url" data-cfg="baseUrl" value="'+esc(c.baseUrl||'')+'" placeholder="'+esc(u)+'"><small>The page address guests open. Links and the QR code are built from it.</small></div>'+
-    '<div class="f"><span class="lbl">Guest link</span><div class="linkbox"><input type="text" readonly value="'+esc(u+'#play')+'" aria-label="Guest link"><button class="hbtn sm" type="button" data-copy="'+esc(u+'#play')+'">Copy</button></div></div>'+
-    '<div class="f"><span class="lbl">TV link (open on the big screen)</span><div class="linkbox"><input type="text" readonly value="'+esc(u+'#tv')+'" aria-label="TV link"><button class="hbtn sm" type="button" data-copy="'+esc(u+'#tv')+'">Copy</button></div></div>'+
+    p.innerHTML='<div class="h-title"><span>Links</span></div>'+
+    '<div class="f"><span class="lbl">Guests</span><div class="linkbox"><input type="text" readonly value="'+esc(u+'#play')+'" aria-label="Guest link"><button class="hbtn sm" type="button" data-copy="'+esc(u+'#play')+'">Copy</button></div></div>'+
+    '<div class="f"><span class="lbl">TV</span><div class="linkbox"><input type="text" readonly value="'+esc(u+'#tv')+'" aria-label="TV link"><button class="hbtn sm" type="button" data-copy="'+esc(u+'#tv')+'">Copy</button></div></div>'+
     '<div class="hqr" id="hqr"></div>'+
-    '<div class="note">Guests only need the guest link. No account or sign-in. Use the same address for the TV link, with #tv on the end.</div><div class="hr"></div>'+
-    '<div class="h-title"><span>Rehearse</span></div><div class="frow"><button class="hbtn sm" type="button" data-sim="12">Add 12 sample answers</button><button class="hbtn sm" type="button" data-sim="30">Add 30</button></div><button class="hbtn sm" type="button" id="rmsim">Remove all sample guests</button>'+
-    '<div class="hr"></div><div class="h-title"><span>Reset</span></div><button class="hbtn sm dng" type="button" id="clrq">Clear answers on live question</button><button class="hbtn sm dng" type="button" id="clrall">Clear all answers and return to lobby</button>';
+    '<details class="more"'+(c.baseUrl?' open':'')+'><summary>Custom address</summary><div class="more-b"><div class="f"><label for="g-base">Page address</label><input id="g-base" type="url" data-cfg="baseUrl" value="'+esc(c.baseUrl||'')+'" placeholder="'+esc(u)+'" aria-describedby="g-base-h"><small id="g-base-h">Links and the QR code use this.</small></div></div></details>'+
+    '<div class="hr"></div><div class="h-title"><span>Game</span></div>'+
+    '<div class="f"><label for="g-title">Title</label><input id="g-title" type="text" data-cfg="title" value="'+esc(c.title)+'"></div><div class="f"><label for="g-tag">Welcome line</label><textarea id="g-tag" rows="2" data-cfg="tagline">'+esc(c.tagline)+'</textarea></div><div class="f"><label for="g-fin">Finale message</label><textarea id="g-fin" rows="2" data-cfg="finale">'+esc(c.finale)+'</textarea></div><div class="f"><label for="g-target">Target length (minutes)</label><input id="g-target" type="number" min="1" max="120" value="'+(c.targetMins||15)+'" data-cfgn="targetMins"></div>'+
+    '<div class="hr"></div><div class="h-title"><span>Rehearse</span></div><div class="btnrow"><button class="hbtn sm" type="button" data-sim="12">Add 12 sample answers</button><button class="hbtn sm" type="button" data-sim="30">Add 30</button><button class="lnk" type="button" id="rmsim">Remove samples</button></div>'+
+    '<div class="hr"></div><div class="h-title"><span>Reset</span></div><div class="btnrow"><button class="hbtn sm dng" type="button" id="clrq">Clear live question</button><button class="hbtn sm dng" type="button" id="clrall">Clear all, back to lobby</button></div>';
     qrInto($r('#hqr'),u+'#play',150);
     confirmBtn($r('#clrq'),'',async function(){var q=curQ();if(!q)return;var n=await deleteAnswers(function(d){return d.q===q.id});toast('Cleared '+n+' answers.')});
     confirmBtn($r('#clrall'),'',async function(){var n=await deleteAnswers(function(){return true});await setState({qid:null,phase:'lobby',locked:false});toast('Cleared '+n+' answers.')});
@@ -645,7 +642,7 @@ function createHost(root){
 /* ================= Home + router ================= */
 function createHome(root){
   var c=cfg();
-  root.innerHTML='<div class="home"><h1>'+fancyTitle(c.title)+'</h1><p>'+esc(c.tagline)+'</p><button class="big" type="button" data-go="play">Join the game</button><div class="row"><button class="sm" type="button" data-go="tv">Open TV screen</button>'+'<button class="sm" type="button" data-go="host">Host login</button>'+'</div></div>';
+  root.innerHTML='<div class="home"><h1>'+esc(c.title)+'</h1><p>'+esc(c.tagline)+'</p><button class="big" type="button" data-go="play">Join the game</button><div class="row"><button class="sm" type="button" data-go="tv">Open TV screen</button>'+'<button class="sm" type="button" data-go="host">Host login</button>'+'</div></div>';
   root.addEventListener('click',function(e){var b=e.target.closest('[data-go]');if(b)go(b.dataset.go)});
   return {update:function(){},destroy:function(){}};
 }
@@ -664,12 +661,12 @@ function mount(){
   tick();
 }
 function createLogin(root){
-  var busy=false,msg='',email='',sent=false;
+  var busy=false,msg='',email='',sent=false,bad=false;
   function draw(signedIn){
-    root.innerHTML='<div class="msg host" style="max-width:420px;text-align:left"><h1 style="font-family:var(--fd)">Host sign-in</h1>'+(signedIn?'<p class="muted">You are signed in as '+esc(signedIn)+', but that account is not on the host list. Ask the person who set up the game to add it, or sign in with another account.</p><button class="hbtn" type="button" id="lo">Sign out</button>':'<p class="muted">Sign in to run the game and edit questions.</p><form id="lf" class="f" style="gap:12px"><div class="f"><label for="le">Email</label><input id="le" type="email" autocomplete="username" required value="'+esc(email)+'"></div><div class="f"><label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password"></div><button class="hbtn pri" type="submit">Sign in</button><button class="hbtn" type="button" id="lm"'+(sent?' disabled':'')+'>'+(sent?'Sign-in link sent':'Email me a sign-in link instead')+'</button></form>')+'<div class="muted" id="lmsg" role="status">'+esc(msg)+'</div></div>';
+    root.innerHTML='<div class="login"><div class="login-c"><h1>Host sign-in</h1>'+(signedIn?'<p class="muted">'+esc(signedIn)+' isn\'t on the host list. Ask whoever set up the game to add it, or sign out and use another account.</p><button class="hbtn" type="button" id="lo">Sign out</button>':'<form id="lf" class="lform"><div class="f"><label for="le">Email</label><input id="le" type="email" autocomplete="username" required value="'+esc(email)+'"></div><div class="f"><label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password"></div><button class="hbtn pri" type="submit">Sign in</button><button class="lnk" type="button" id="lm"'+(sent?' disabled':'')+'>'+(sent?'Link sent':'Email me a sign-in link')+'</button></form>')+'<div class="muted lmsg'+(bad?' bad':'')+'" id="lmsg" role="status">'+esc(msg)+'</div></div></div>';
     var f=$('#lf',root);
-    if(f)f.addEventListener('submit',async function(e){e.preventDefault();if(busy)return;busy=true;msg='Signing in…';$('#lmsg',root).textContent=msg;email=$('#le',root).value.trim();try{await B.auth.signIn(email,$('#lp',root).value);msg=''}catch(x){msg=(x&&x.message)||'Could not sign in.';draw(false)}busy=false});
-    var lm=$('#lm',root);if(lm)lm.addEventListener('click',async function(){var em=$('#le',root).value.trim();if(!em){$('#lmsg',root).textContent='Enter your email first.';return}if(sent)return;lm.disabled=true;try{await B.auth.magic(em);sent=true;lm.textContent='Sign-in link sent';msg='Check your email for the sign-in link. Each new link cancels the last one, so use the newest email.'}catch(x){lm.disabled=false;msg=(x&&x.message)||'Could not send the link.'}$('#lmsg',root).textContent=msg});
+    if(f)f.addEventListener('submit',async function(e){e.preventDefault();if(busy)return;busy=true;msg='Signing in…';bad=false;$('#lmsg',root).textContent=msg;$('#lmsg',root).classList.remove('bad');email=$('#le',root).value.trim();try{await B.auth.signIn(email,$('#lp',root).value);msg=''}catch(x){msg=(x&&x.message)||'Could not sign in.';bad=true;draw(false)}busy=false});
+    var lm=$('#lm',root);if(lm)lm.addEventListener('click',async function(){var em=$('#le',root).value.trim();if(!em){$('#lmsg',root).textContent='Enter your email first.';$('#lmsg',root).classList.add('bad');return}if(sent)return;lm.disabled=true;try{await B.auth.magic(em);sent=true;lm.textContent='Link sent';msg='Check your email. Only the newest link works.';bad=false}catch(x){lm.disabled=false;msg=(x&&x.message)||'Could not send the link.';bad=true}$('#lmsg',root).textContent=msg;$('#lmsg',root).classList.toggle('bad',bad)});
     var lo=$('#lo',root);if(lo)lo.addEventListener('click',function(){B.auth.signOut()});
   }
   draw(false);

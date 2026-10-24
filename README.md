@@ -27,7 +27,7 @@ Put the two values into `config.js`, commit, push.
 Repository Settings > Pages > Build from branch `main`, folder `/ (root)`. Your address is `https://<user>.github.io/<repo>/`.
 
 ### 4. Try it
-Open `#host`, sign in, press "Start game", then open `#play` on a phone. Share & tools > "Add 12 sample answers" rehearses a question with fake guests.
+Open `#host`, sign in, press "Start game", then open `#play` on a phone. Setup > "Add 12 sample answers" rehearses a question with fake guests.
 
 ## Try it locally (no Supabase needed)
 From the repo root run `python3 -m http.server 8000`. Then open these as tabs in one browser:
