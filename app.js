@@ -182,7 +182,7 @@ function cloudModule(el,c0,opt){
   function rng(seed){var h=hash(seed)||1;return function(){h=(h+0x6D2B79F5)|0;var t=Math.imul(h^(h>>>15),1|h);t=(t+Math.imul(t^(t>>>7),61|t))^t;return ((t^(t>>>14))>>>0)/4294967296}}
   function shuffle(a,r){r=r||Math.random;for(var i=a.length-1;i>0;i--){var j=Math.floor(r()*(i+1)),t=a[i];a[i]=a[j];a[j]=t}return a}
   function plan(mode,its,c,seed){
-    var st=[],n=its.length,iv=Math.min(180,6000/Math.max(n,1)),at=0;
+    var st=[],n=its.length,iv=Math.min(250,8500/Math.max(n,1)),at=0;
     if(mode==='random'||mode==='replay'){
       /* one answer per step: a word appears at count 1 and grows with each repeat. Random shuffles the answers (seeded, so every TV and a reloaded TV share the order); Replay uses send order. */
       var inSet=new Set(its.map(function(i){return i.key})),hid=new Set((c.mod&&c.mod.hidden)||[]),ev=[],cnt={};
