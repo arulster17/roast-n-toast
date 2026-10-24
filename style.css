@@ -85,9 +85,10 @@ button{font-family:inherit;cursor:pointer}
 
 /* word cloud */
 .cloud{position:absolute;inset:0}
-.cloud .w{position:absolute;white-space:nowrap;line-height:1.1;font-family:var(--fd);font-weight:var(--fdw);letter-spacing:-.02em;transform:translate(-50%,-50%);transition:left .9s cubic-bezier(.2,.8,.2,1),top .9s cubic-bezier(.2,.8,.2,1),font-size .9s cubic-bezier(.2,.8,.2,1);animation:pop .7s cubic-bezier(.2,.8,.2,1) both}
+.cloud .w{position:absolute;white-space:nowrap;line-height:1.1;font-family:var(--fd);font-weight:var(--fdw);letter-spacing:-.02em;transform:translate(-50%,-50%);transition:left .9s cubic-bezier(.2,.8,.2,1),top .9s cubic-bezier(.2,.8,.2,1),font-size .9s cubic-bezier(.2,.8,.2,1),color .5s ease;animation:pop .7s cubic-bezier(.2,.8,.2,1) both}
 .cloud .wi{display:inline-block;animation:bob 6s ease-in-out infinite;animation-delay:var(--d,0s)}
 .cloud .w.still{animation:none}
+.cloud .w.grow{transition:font-size .2s ease-out,color .5s ease;animation-duration:.35s}
 .cloud .w.quiet{animation:wfade 1s ease-out both}
 .cloud .w.pulse{animation:pop .7s cubic-bezier(.2,.8,.2,1) both,wpulse .8s ease-in-out .55s}
 @keyframes wfade{from{opacity:0}to{opacity:1}}
