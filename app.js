@@ -11,6 +11,7 @@ function cap(s){return s?s.charAt(0).toUpperCase()+s.slice(1):s}
 function normKey(s){var k=s.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g,'').replace(/[^\p{L}\p{N}\s]/gu,'').replace(/\s+/g,' ').trim();k=k.replace(/^(a|an|the|my|his)\s+/,'');if(k.length>4&&/[^s]s$/.test(k))k=k.slice(0,-1);return k||s.toLowerCase()}
 function lum(hex){var m=/^#?([0-9a-f]{6})$/i.exec(hex||'');if(!m)return 0;var n=parseInt(m[1],16),r=(n>>16)&255,g=(n>>8)&255,b=n&255;return(0.2126*r+0.7152*g+0.0722*b)/255}
 function onColor(hex){return lum(hex)>0.55?'#0B0B14':'#FFFFFF'}
+function fmtT(ms){var s=Math.max(0,Math.floor(ms/1000));return Math.floor(s/60)+':'+('0'+s%60).slice(-2)}
 function debounce(fn,ms){var t;return function(){var a=arguments;clearTimeout(t);t=setTimeout(function(){fn.apply(null,a)},ms)}}
 function blobUrl(id){var B=window.RT_BACKEND;return B&&B.photoUrl?B.photoUrl(id):'/_blob/'+id}
 function safeId(s){return String(s).replace(/[^A-Za-z0-9_\-.~:@+]/g,'_')}
@@ -35,7 +36,7 @@ var PRESETS={
   emerald:{name:'Emerald Gala',bg:'#06231D',surface:'#0C3329',line:'#1D5A49',text:'#EAFBF4',muted:'#9ED0BE',a1:'#F4B942',a2:'#5EEAD4',a3:'#FF7A59',font:'gala',pattern:'rings'},
   mono:{name:'Black Tie',bg:'#0A0A0A',surface:'#161616',line:'#333333',text:'#FAFAFA',muted:'#A3A3A3',a1:'#FFFFFF',a2:'#D4D4D4',a3:'#8A8A8A',font:'poster',pattern:'none'}
 };
-var DEFAULT_CFG={title:'Roast & Toast',tagline:'[Name] turns 50. Tonight, you get to tell him exactly what you think.',finale:"Glasses up. Here's to [Name] at 50.",baseUrl:'',spotlightSecs:6,theme:{preset:'stage',radius:18,align:'left',scale:1}};
+var DEFAULT_CFG={title:'Roast & Toast',tagline:'[Name] turns 50. Tonight, you get to tell him exactly what you think.',finale:"Glasses up. Here's to [Name] at 50.",baseUrl:'',spotlightSecs:6,targetMins:15,theme:{preset:'stage',radius:18,align:'left',scale:1}};
 var KINDS=[['text','Short text answer'],['choice','Multiple choice (text)'],['photochoice','Multiple choice (photos)']];
 var DISPLAYS={text:[['cloud','Animated word cloud'],['wall','Caption wall'],['spotlight','Spotlight, one at a time'],['bars','Bars (top answers)']],choice:[['bars','Bars']],photochoice:[['photos','Photo tiles'],['bars','Bars']]};
 var SAMPLE_SHORT=['Legend','Dad jokes','Always late','Heart of gold','Stubborn','Loyal','Snack lord','Chaos','Big hugs','Nap champion','Golden retriever','Bear','Sloth'];
@@ -45,7 +46,7 @@ function loadedFontLink(id,q1,q2){if(document.getElementById('font-'+id))return;
 
 /* ================= store ================= */
 var DB=null,ASSETS=null,B=null;
-var S={config:null,state:{qid:null,phase:'lobby',locked:false},qs:[],guests:[],answers:[],mod:{hidden:[],featured:null},gid:null,canEdit:false,route:'home',loaded:{cfg:false,state:false,qs:false}};
+var S={config:null,state:{qid:null,phase:'lobby',locked:false},qs:[],guests:[],answers:[],mod:{hidden:[],featured:null},gid:null,canEdit:false,lean:false,mine:{},route:'home',loaded:{cfg:false,state:false,qs:false}};
 var subs={answers:null,mod:null};
 var view=null;
 function curQ(){return S.qs.find(function(q){return q.id===S.state.qid})||null}
@@ -54,6 +55,11 @@ function cfg(){return Object.assign({},DEFAULT_CFG,S.config||{})}
 function theme(){var b=PRESETS.stage;return Object.assign({radius:18,align:'left',scale:1},{bg:b.bg,surface:b.surface,line:b.line,text:b.text,muted:b.muted,a1:b.a1,a2:b.a2,a3:b.a3,font:b.font,pattern:b.pattern},(S.config&&S.config.theme)||{})}
 function baseUrl(){var c=cfg();if(c.baseUrl)return c.baseUrl;try{return location.href.split('#')[0]}catch(e){return ''}}
 function joinUrl(){return baseUrl()+'#play'}
+/* Our own writes echo back through the live feed, sometimes after a newer local change. Skip echoes of older writes so quick edits are not undone. */
+var echoes={};
+function stable(o){return Array.isArray(o)?'['+o.map(stable).join(',')+']':o&&typeof o==='object'?'{'+Object.keys(o).sort().map(function(k){return JSON.stringify(k)+':'+stable(o[k])}).join(',')+'}':JSON.stringify(o)}
+function wrote(key,d){var e=echoes[key]||(echoes[key]={list:[],last:null}),j=stable(d);e.list.push(j);if(e.list.length>30)e.list.shift();e.last=j}
+function staleEcho(key,d){var e=echoes[key];if(!e||!d)return false;var j=stable(d);return j!==e.last&&e.list.indexOf(j)>-1}
 function tick(){if(tick.p)return;tick.p=requestAnimationFrame(function(){tick.p=0;if(view&&view.update)try{view.update()}catch(e){console.error(e)}})}
 
 function applyTheme(){
@@ -70,14 +76,24 @@ function subAnswers(){
   if(subs.mod){subs.mod();subs.mod=null}
   S.answers=[];S.mod={hidden:[],featured:null};
   var qid=S.state.qid;if(!qid){tick();return}
+  if(S.lean){loadMine(qid);return}
   subs.answers=DB.collection('answers').where('q','==',qid).onSnapshot(function(s){S.answers=s.docs.map(function(d){return Object.assign({id:d.id},d.data())});tick()},function(e){console.warn('answers',e)});
-  subs.mod=DB.doc('mod/'+qid).onSnapshot(function(s){var d=s.exists?s.data():{};S.mod={hidden:d.hidden||[],featured:d.featured||null};tick()},function(e){console.warn('mod',e)});
+  subs.mod=DB.doc('mod/'+qid).onSnapshot(function(s){var d=s.exists?s.data():{};if(staleEcho('mod/'+qid,d))return;S.mod={hidden:d.hidden||[],featured:d.featured||null};tick()},function(e){console.warn('mod',e)});
+}
+/* Phones never watch the answers collection: 60 phones each receiving every answer overruns the realtime message limit.
+   They read only their own answer rows, whose ids are fixed (see submit in createPlay), and keep them in S.mine by question. */
+function myIds(qid){var q=S.qs.find(function(x){return x.id===qid}),base=qid+'__'+safeId(S.gid),n=!q?5:q.kind==='text'?Math.min(5,q.maxPerGuest||1):0,ids=[base];for(var i=1;i<=n;i++)ids.push(base+'__'+i);return ids}
+function getRetry(path,tries){return DB.doc(path).get().catch(function(e){if(!tries)throw e;return sleep(tries>1?800:2000).then(function(){return getRetry(path,tries-1)})})}
+function loadMine(qid){
+  myIds(qid).forEach(function(id){
+    getRetry('answers/'+id,2).then(function(s){if(!s.exists)return;var m=S.mine[qid]||(S.mine[qid]={});if(!m[id]){m[id]=Object.assign({id:id},s.data());tick()}}).catch(function(e){console.warn('answer',e)});
+  });
 }
 function subscribeAll(){
-  DB.doc('config/main').onSnapshot(function(s){S.config=s.exists?s.data():null;S.loaded.cfg=true;applyTheme();tick()},function(e){console.warn(e)});
-  DB.doc('game/state').onSnapshot(function(s){var d=s.exists?s.data():{qid:null,phase:'lobby',locked:false};var ch=d.qid!==S.state.qid;S.state=d;S.loaded.state=true;if(ch)subAnswers();tick()},function(e){console.warn(e)});
+  DB.doc('config/main').onSnapshot(function(s){var d=s.exists?s.data():null;if(staleEcho('config',d))return;S.config=d;S.loaded.cfg=true;applyTheme();tick()},function(e){console.warn(e)});
+  DB.doc('game/state').onSnapshot(function(s){var d=s.exists?s.data():{qid:null,phase:'lobby',locked:false};if(staleEcho('state',d))return;var ch=d.qid!==S.state.qid;S.state=d;S.loaded.state=true;if(ch)subAnswers();tick()},function(e){console.warn(e)});
   DB.collection('questions').onSnapshot(function(s){S.qs=s.docs.map(function(d){return Object.assign({id:d.id},d.data())}).sort(function(a,b){return (a.n||0)-(b.n||0)});S.loaded.qs=true;tick()},function(e){console.warn(e)});
-  DB.collection('guests').onSnapshot(function(s){S.guests=s.docs.map(function(d){return d.id});tick()},function(e){console.warn(e)});
+  if(!S.lean)DB.collection('guests').onSnapshot(function(s){S.guests=s.docs.map(function(d){return d.id});tick()},function(e){console.warn(e)});
   subAnswers();
 }
 
@@ -290,7 +306,7 @@ function createTV(root){
     if(phase==='reveal'){
       var visible=ctx.answers.filter(function(a){return !((ctx.mod&&ctx.mod.hidden)||[]).includes(a.id)}).length;
       $('[data-k=total]',stage).textContent=visible+(visible===1?' answer':' answers');
-      $('[data-k=hint]',stage).textContent=(q.kind==='text'&&q.merge!==false)?'Similar answers merged. Bigger means more people said it.':'';
+      var dk=displayFor(q);$('[data-k=hint]',stage).textContent=(q.kind==='text'&&q.merge!==false)?(dk==='cloud'?'Similar answers merged. Bigger means more people said it.':dk==='wall'?'Similar answers merged. ×2 means two people said it.':'Similar answers merged.'):'';
       if(mod&&mod.update)mod.update(ctx);
     }
   }
@@ -302,15 +318,15 @@ function createPlay(root,opts){
   opts=opts||{};var preview=!!opts.preview,sig='',draft='',selected=null,editing=false,lastQ=null,err='';
   root.innerHTML='<div class="phone"></div>';var ph=root.firstChild;
   function pctx(){if(opts.ctx)return opts.ctx();return {q:curQ(),phase:S.state.phase,locked:S.state.locked}}
-  function mine(q){return preview?[]:S.answers.filter(function(a){return a.g===S.gid&&a.q===q.id})}
-  function label(q,v){if(q.kind==='text')return v;var o=(q.options||[]).find(function(x){return x.id===v});return o?o.label||('Option '+(1+q.options.indexOf(o))):v}
+  function mine(q){if(preview)return [];var m=S.mine[q.id]||{};return Object.keys(m).map(function(k){return m[k]}).sort(function(a,b){return (a.t||0)-(b.t||0)})}
+  function label(q,v){if(q.kind==='text')return v;var o=(q.options||[]).find(function(x){return x.id===v});if(!o)return v;var i=q.options.indexOf(o);return q.kind==='photochoice'?'Photo '+String.fromCharCode(65+i)+(o.label?' · '+o.label:''):o.label||('Option '+(i+1))}
   function head(c){var t=cfg();return '<div class="brand"><span>'+esc(t.title)+'</span>'+(c.q&&c.phase!=='lobby'?'<small>'+(S.qs.indexOf(c.q)+1)+' of '+S.qs.length+'</small>':'')+'</div>'}
   async function submit(q,val){
     if(preview)return;
     var m=mine(q),id;
     if(q.kind!=='text'||(q.maxPerGuest||1)<=1||editing){id=q.id+'__'+safeId(S.gid)}
     else{var used=new Set(m.map(function(a){return a.id}));for(var i=1;i<=(q.maxPerGuest||1);i++){if(!used.has(q.id+'__'+safeId(S.gid)+'__'+i)){id=q.id+'__'+safeId(S.gid)+'__'+i;break}}if(!id)return}
-    try{await DB.doc('answers/'+id).set({q:q.id,g:S.gid,v:val,t:Date.now()});editing=false;draft='';selected=null;err='';sig='';tick()}catch(e){err='Could not send. Check your connection and try again.';render(true)}
+    var doc={q:q.id,g:S.gid,v:val,t:Date.now()};try{await DB.doc('answers/'+id).set(doc);(S.mine[q.id]||(S.mine[q.id]={}))[id]=Object.assign({id:id},doc);editing=false;draft='';selected=null;err='';sig='';tick()}catch(e){err=e&&(e.code==='42501'||e.code==='permission_denied')?'Too late. This question just closed.':'Could not send. Check your connection and try again.';render(true)}
   }
   function render(force){
     var c=pctx(),q=c.q,m=q?mine(q):[];
@@ -355,7 +371,7 @@ function createPlay(root,opts){
     if(send)send.addEventListener('click',function(){
       if(q.kind==='text'){
         var v=clean(draft);if(!v){err='Type an answer first.';render(true);return}
-        if(q.exactWords){var n=v.split(' ').length;if(n!==q.exactWords){err='Exactly '+q.exactWords+' word'+(q.exactWords>1?'s':'')+', please. You have '+n+'.';render(true);return}}
+        if(q.exactWords){var n=v.split(' ').filter(function(w){return /[\p{L}\p{N}]/u.test(w)}).length;if(n!==q.exactWords){err='Exactly '+q.exactWords+' word'+(q.exactWords>1?'s':'')+', please. You have '+n+'.';render(true);return}}
         submit(q,v);
       }else if(selected)submit(q,selected);
     });
@@ -368,7 +384,9 @@ function createPlay(root,opts){
 /* ================= Host console ================= */
 async function setState(patch){
   var s=Object.assign({qid:null,phase:'lobby',locked:false},S.state,patch,{t:Date.now()});
+  if(patch.phase==='end'&&S.state.phase!=='end')s.endedAt=Date.now();else if(patch.phase==='collect'||patch.phase==='reveal')s.endedAt=null;
   var ch=s.qid!==S.state.qid;S.state=s;if(ch)subAnswers();tick();
+  wrote('state',s);
   try{await DB.doc('game/state').set(s)}catch(e){toast('Could not update the game state.')}
 }
 async function saveQ(id,patch){
@@ -378,12 +396,13 @@ async function saveQ(id,patch){
 async function saveCfg(patch){
   var cur=S.config||Object.assign({},DEFAULT_CFG);
   var next=Object.assign({},cur,patch);if(patch.theme)next.theme=Object.assign({},cur.theme||{},patch.theme);
-  S.config=next;applyTheme();tick();
+  S.config=next;applyTheme();tick();wrote('config',next);
   try{await DB.doc('config/main').set(next)}catch(e){toast('Could not save settings.')}
 }
 async function saveMod(patch){
   var qid=S.state.qid;if(!qid)return;S.mod=Object.assign({},S.mod,patch);tick();
-  try{await DB.doc('mod/'+qid).set({hidden:S.mod.hidden||[],featured:S.mod.featured||null})}catch(e){toast('Could not save.')}
+  var md={hidden:S.mod.hidden||[],featured:S.mod.featured||null};wrote('mod/'+qid,md);
+  try{await DB.doc('mod/'+qid).set(md)}catch(e){toast('Could not save.')}
 }
 function pickFile(){return new Promise(function(res){var i=document.createElement('input');i.type='file';i.accept='image/*';i.onchange=function(){res(i.files&&i.files[0]||null)};i.click()})}
 async function prepImage(file,max){
@@ -391,11 +410,12 @@ async function prepImage(file,max){
   try{var bmp=await createImageBitmap(file);var s=Math.min(1,max/Math.max(bmp.width,bmp.height));var c=document.createElement('canvas');c.width=Math.round(bmp.width*s);c.height=Math.round(bmp.height*s);c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);return await new Promise(function(r){c.toBlob(r,'image/jpeg',0.86)})}catch(e){return file}
 }
 async function uploadPhoto(){
-  if(!ASSETS){toast('Photo upload needs edit access to this page.');return null}
+  if(!ASSETS){toast('Sign in as a host to upload photos.');return null}
   var f=await pickFile();if(!f)return null;
   toast('Uploading photo…');
   try{var b=await prepImage(f);var r=await ASSETS.upload(b,{type:b.type||'image/jpeg'});toast('Photo added.');return r.id}catch(e){toast('Upload failed'+(e&&e.code?' ('+e.code+')':'')+'.');return null}
 }
+function renumber(arr){var ps=[];arr.forEach(function(q,i){if(q.n!==i+1)ps.push(saveQ(q.id,{n:i+1}))});S.qs.sort(function(x,y){return x.n-y.n});tick();return Promise.all(ps)}
 function newQuestion(extra){
   var n=S.qs.length?Math.max.apply(null,S.qs.map(function(q){return q.n||0}))+1:1,last=S.qs[S.qs.length-1];
   return Object.assign({n:n,round:last?last.round:'The Roast',accent:last?last.accent:1,text:'New question',kind:'text',display:'cloud',photo:null,photoCaption:'',options:[],maxLen:60,exactWords:0,maxPerGuest:1,merge:true,hint:'',cue:''},extra||{});
@@ -472,11 +492,18 @@ function createHost(root){
     else if(ph==='collect'){st='<b>Q'+(i+1)+' · collecting</b><span class="muted">'+answered+' of '+tot+' answered'+(S.state.locked?' · closed':'')+'</span>';pri='<button class="hbtn pri" type="button" data-act="reveal">Reveal answers</button><button class="hbtn" type="button" data-act="lock">'+(S.state.locked?'Reopen submissions':'Close submissions')+'</button>'}
     else if(ph==='reveal'){st='<b>Q'+(i+1)+' · results on screen</b><span class="muted">'+answered+' answered</span>';pri='<button class="hbtn pri" type="button" data-act="next">'+(i+1<S.qs.length?'Next question →':'Finale →')+'</button><button class="hbtn" type="button" data-act="reopen">Reopen collecting</button>'}
     else{st='<b>Finale</b><span class="muted">Final toast screen is up.</span>';pri='<button class="hbtn pri" type="button" data-act="lobby">Back to lobby</button>'}
-    sec='<button class="hbtn sm" type="button" data-act="prev"'+(i>0?'':' disabled')+'>← Previous</button><button class="hbtn sm" type="button" data-act="lobby">Lobby</button><button class="hbtn sm" type="button" data-act="finale">Finale screen</button>';
-    var h='<div class="st">'+st+'</div><div class="btns">'+pri+'</div><div class="btns">'+sec+'</div><small class="muted">Keyboard: → or Space advances, ← goes back.</small>';
+    sec='<button class="hbtn sm" type="button" data-act="prev"'+(i>0||(ph==='end'&&q)?'':' disabled')+'>← Previous</button><button class="hbtn sm" type="button" data-act="lobby">Lobby</button><button class="hbtn sm" type="button" data-act="finale">Finale screen</button>';
+    var h='<div class="st">'+st+'<span class="clock" data-k="clock" title="Time since the game started, against your target. Only you see this."></span></div><div class="btns">'+pri+'</div><div class="btns">'+sec+'</div><small class="muted">Keyboard: → or Space advances, ← goes back.</small>';
     if($r('#ctl').dataset.h!==h){$r('#ctl').innerHTML=h;$r('#ctl').dataset.h=h}
+    updClock();
     var cue=$r('#cue');if(q&&q.cue&&ph!=='lobby'){cue.hidden=false;cue.innerHTML='<b>HOST CUE</b>'+esc(q.cue)}else cue.hidden=true;
   }
+  function updClock(){
+    var el=$r('[data-k=clock]');if(!el)return;var st=S.state,tm=(cfg().targetMins||15)*60000;
+    if(!st.startedAt){el.textContent='0:00 / '+fmtT(tm);el.className='clock idle';return}
+    var e=(st.endedAt||Date.now())-st.startedAt;el.textContent=fmtT(e)+' / '+fmtT(tm);el.className='clock'+(e>tm?' over':e>tm*0.8?' near':'');
+  }
+  var clockT=setInterval(updClock,1000);
   function updMod(){
     var q=curQ(),box=$r('#modlist');
     if(!q||q.kind!=='text'){box.innerHTML='<p class="muted" style="margin:0">'+(q?'Votes show as bars. Nothing to moderate.':'Go live on a question to see answers here.')+'</p>';$r('#mcount').textContent='';return}
@@ -528,7 +555,7 @@ function createHost(root){
   /* --- share panel --- */
   function buildShare(){
     var c=cfg(),u=baseUrl(),p=$r('#panel');
-    p.innerHTML='<div class="f"><label for="g-title">Game title</label><input id="g-title" type="text" data-cfg="title" value="'+esc(c.title)+'"></div><div class="f"><label for="g-tag">Welcome line</label><textarea id="g-tag" rows="2" data-cfg="tagline">'+esc(c.tagline)+'</textarea></div><div class="f"><label for="g-fin">Finale message</label><textarea id="g-fin" rows="2" data-cfg="finale">'+esc(c.finale)+'</textarea></div><div class="hr"></div>'+
+    p.innerHTML='<div class="f"><label for="g-title">Game title</label><input id="g-title" type="text" data-cfg="title" value="'+esc(c.title)+'"></div><div class="f"><label for="g-tag">Welcome line</label><textarea id="g-tag" rows="2" data-cfg="tagline">'+esc(c.tagline)+'</textarea></div><div class="f"><label for="g-fin">Finale message</label><textarea id="g-fin" rows="2" data-cfg="finale">'+esc(c.finale)+'</textarea></div><div class="f"><label for="g-target">Game length target (minutes)</label><input id="g-target" type="number" min="1" max="120" value="'+(c.targetMins||15)+'" data-cfgn="targetMins"><small>The clock in your controls counts against this. Guests and the TV never see it.</small></div><div class="hr"></div>'+
     '<div class="f"><label for="g-base">Page address</label><input id="g-base" type="url" data-cfg="baseUrl" value="'+esc(c.baseUrl||'')+'" placeholder="'+esc(u)+'"><small>The page address guests open. Links and the QR code are built from it.</small></div>'+
     '<div class="f"><span class="lbl">Guest link</span><div class="linkbox"><input type="text" readonly value="'+esc(u+'#play')+'" aria-label="Guest link"><button class="hbtn sm" type="button" data-copy="'+esc(u+'#play')+'">Copy</button></div></div>'+
     '<div class="f"><span class="lbl">TV link (open on the big screen)</span><div class="linkbox"><input type="text" readonly value="'+esc(u+'#tv')+'" aria-label="TV link"><button class="hbtn sm" type="button" data-copy="'+esc(u+'#tv')+'">Copy</button></div></div>'+
@@ -542,15 +569,15 @@ function createHost(root){
   }
   function showTab(t){H.tab=t;updSeg();if(t==='edit'){if(!H.edit&&S.qs.length)H.edit=(curQ()||S.qs[0]).id;buildEditor()}else if(t==='look')buildLook();else buildShare()}
   /* --- actions --- */
-  function goto(i){if(i<0||i>=S.qs.length)return;return setState({qid:S.qs[i].id,phase:'collect',locked:false})}
+  function goto(i,extra){if(i<0||i>=S.qs.length)return;return setState(Object.assign({qid:S.qs[i].id,phase:'collect',locked:false},S.state.startedAt?{}:{startedAt:Date.now(),endedAt:null},extra))}
   function act(a){
     var i=qIndex();
-    if(a==='start0')goto(0);
+    if(a==='start0')goto(0,{startedAt:Date.now(),endedAt:null});
     else if(a==='reveal')setState({phase:'reveal',locked:true});
     else if(a==='lock')setState({locked:!S.state.locked});
     else if(a==='reopen')setState({phase:'collect',locked:false});
     else if(a==='next'){if(i+1<S.qs.length)goto(i+1);else setState({phase:'end'})}
-    else if(a==='prev'){if(i>0)goto(i-1)}
+    else if(a==='prev'){if(S.state.phase==='end'&&i>-1)setState({phase:'reveal',locked:true});else if(i>0)setState({qid:S.qs[i-1].id,phase:'reveal',locked:true})}
     else if(a==='lobby')setState({qid:null,phase:'lobby',locked:false});
     else if(a==='finale')setState({phase:'end'});
   }
@@ -564,7 +591,7 @@ function createHost(root){
     if(el.dataset.tab){showTab(el.dataset.tab);return}
     if(el.dataset.act){act(el.dataset.act);return}
     if(el.dataset.go){var ix=S.qs.findIndex(function(q){return q.id===el.dataset.go});goto(ix);return}
-    if(el.dataset.mv){var id=el.dataset.id,d=+el.dataset.mv,k=S.qs.findIndex(function(q){return q.id===id}),o=S.qs[k+d];if(!o)return;var a=S.qs[k];var an=a.n,on=o.n;await Promise.all([saveQ(a.id,{n:on}),saveQ(o.id,{n:an})]);S.qs.sort(function(x,y){return x.n-y.n});tick();return}
+    if(el.dataset.mv){var id=el.dataset.id,d=+el.dataset.mv,k=S.qs.findIndex(function(q){return q.id===id}),o=S.qs[k+d];if(!o)return;var arr=S.qs.slice();arr[k+d]=S.qs[k];arr[k]=o;await renumber(arr);return}
     if(el.id==='addq'){var nq=newQuestion(),id2='q'+uid();S.qs.push(Object.assign({id:id2},nq));H.edit=id2;try{await DB.doc('questions/'+id2).set(nq)}catch(x){toast('Could not add.')}showTab('edit');tick();return}
     if(el.dataset.feat){saveMod({featured:S.mod.featured===el.dataset.feat?null:el.dataset.feat});return}
     if(el.dataset.hide){var hs=new Set(S.mod.hidden||[]);if(hs.has(el.dataset.hide))hs.delete(el.dataset.hide);else hs.add(el.dataset.hide);saveMod({hidden:Array.from(hs)});return}
@@ -574,7 +601,7 @@ function createHost(root){
     if(el.dataset.optphoto!=null){var q3=selQ(),idn=await uploadPhoto();if(idn){var o3=(q3.options||[]).map(function(x,j){return j===+el.dataset.optphoto?Object.assign({},x,{photo:idn}):x});editPatch({options:o3},true);buildEditor()}return}
     if(el.dataset.qphoto){var idq=await uploadPhoto();if(idq){editPatch({photo:idq},true);buildEditor()}return}
     if(el.dataset.qphotoDel){editPatch({photo:null},true);buildEditor();return}
-    if(el.id==='dup'){var q4=selQ();var cp=Object.assign({},q4);delete cp.id;cp.n=(q4.n||0)+0.5;cp.options=(q4.options||[]).map(function(x){return Object.assign({},x,{id:'o'+uid()})});var nid='q'+uid();S.qs.push(Object.assign({id:nid},cp));S.qs.sort(function(x,y){return x.n-y.n});H.edit=nid;try{await DB.doc('questions/'+nid).set(cp)}catch(x){toast('Could not duplicate.')}buildEditor();tick();return}
+    if(el.id==='dup'){var q4=selQ();var cp=Object.assign({},q4);delete cp.id;cp.n=(q4.n||0)+0.5;cp.options=(q4.options||[]).map(function(x){return Object.assign({},x,{id:'o'+uid()})});var nid='q'+uid();S.qs.push(Object.assign({id:nid},cp));S.qs.sort(function(x,y){return x.n-y.n});H.edit=nid;try{await DB.doc('questions/'+nid).set(cp)}catch(x){toast('Could not duplicate.')}renumber(S.qs.slice());buildEditor();return}
     if(el.dataset.preset){var pr=PRESETS[el.dataset.preset];saveCfg({theme:{preset:el.dataset.preset,bg:pr.bg,surface:pr.surface,line:pr.line,text:pr.text,muted:pr.muted,a1:pr.a1,a2:pr.a2,a3:pr.a3,font:pr.font,pattern:pr.pattern}});buildLook();return}
     if(el.dataset.sim){await simulate(+el.dataset.sim);return}
     if(el.id==='rmsim'){await removeSim();return}
@@ -595,7 +622,7 @@ function createHost(root){
     else if(t.dataset.f==='display'){editPatch({display:t.value},true)}
     else if(t.dataset.f==='merge'){editPatch({merge:t.checked},true)}
     else if(t.dataset.th){var o={};o[t.dataset.th]=t.value;if(t.dataset.th==='font'||t.dataset.th==='pattern')o.preset='custom';saveCfg({theme:o})}
-    else if(t.dataset.cfgn){saveCfg({spotlightSecs:Math.max(3,Math.min(20,+t.value||6))})}
+    else if(t.dataset.cfgn){var cn=t.dataset.cfgn,lim=cn==='targetMins'?[1,120,15]:[3,20,6],oc={};oc[cn]=Math.max(lim[0],Math.min(lim[1],+t.value||lim[2]));saveCfg(oc);updClock()}
     else if(t.dataset.cfg==='baseUrl'){saveCfg({baseUrl:t.value.trim()});buildShare()}
   });
   var saveCfgDeb=(function(){var pend={};var go=debounce(function(){var p=pend;pend={};saveCfg(p)},350);return function(patch){if(patch.theme){pend.theme=Object.assign(pend.theme||{},patch.theme)}Object.keys(patch).forEach(function(k){if(k!=='theme')pend[k]=patch[k]});var cur=S.config||Object.assign({},DEFAULT_CFG);S.config=Object.assign({},cur,patch.theme?{theme:Object.assign({},cur.theme||{},patch.theme)}:{},Object.keys(patch).reduce(function(o,k){if(k!=='theme')o[k]=patch[k];return o},{}));applyTheme();tick();go()}})();
@@ -612,7 +639,7 @@ function createHost(root){
     updChips();updList();updCtl();updMod();updSeg();
     H.tv.update(pvCtx());H.ph.update();
   }
-  return {update:update,destroy:function(){window.removeEventListener('keydown',onKey);H.tv.destroy()}};
+  return {update:update,destroy:function(){window.removeEventListener('keydown',onKey);clearInterval(clockT);H.tv.destroy()}};
 }
 
 /* ================= Home + router ================= */
@@ -622,10 +649,12 @@ function createHome(root){
   root.addEventListener('click',function(e){var b=e.target.closest('[data-go]');if(b)go(b.dataset.go)});
   return {update:function(){},destroy:function(){}};
 }
-function go(r){S.route=r;try{location.hash=r==='home'?'':r}catch(e){}mount()}
+function isLean(r){return r!=='tv'&&r!=='host'}
+function needsReload(r){return DB&&isLean(r)!==S.lean}
+function go(r){if(needsReload(r)){location.hash=r;location.reload();return}S.route=r;try{location.hash=r==='home'?'':r}catch(e){}mount()}
 function mount(){
   if(view&&view.destroy)try{view.destroy()}catch(e){}
-  view=null;var app=$('#app');app.innerHTML='';app.className='';
+  view=null;var old=$('#app'),app=old.cloneNode(false);old.parentNode.replaceChild(app,old);app.className='';/* fresh node drops the previous view's listeners */
   document.body.className='r-'+S.route;
   if(!DB){app.innerHTML='<div class="msg"><h1>'+(B&&!B.configured?'Backend not set up yet':'Could not reach the game server')+'</h1><p>'+(B&&!B.configured?'Add your Supabase project URL and anon key to config.js (see README), then reload.':'Check your connection and reload the page.')+'</p></div>';return}
   if(S.route==='tv'){var tvv=createTV(app);view={update:function(){tvv.update(liveCtx())},destroy:function(){tvv.destroy()}}}
@@ -635,12 +664,12 @@ function mount(){
   tick();
 }
 function createLogin(root){
-  var busy=false,msg='';
+  var busy=false,msg='',email='',sent=false;
   function draw(signedIn){
-    root.innerHTML='<div class="msg host" style="max-width:420px;text-align:left"><h1 style="font-family:var(--fd)">Host sign-in</h1>'+(signedIn?'<p class="muted">You are signed in as '+esc(signedIn)+', but that account is not on the host list. Ask the person who set up the game to add it, or sign in with another account.</p><button class="hbtn" type="button" id="lo">Sign out</button>':'<p class="muted">Sign in to run the game and edit questions.</p><form id="lf" class="f" style="gap:12px"><div class="f"><label for="le">Email</label><input id="le" type="email" autocomplete="username" required></div><div class="f"><label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password"></div><button class="hbtn pri" type="submit">Sign in</button><button class="hbtn" type="button" id="lm">Email me a sign-in link instead</button></form>')+'<div class="muted" id="lmsg" role="status">'+esc(msg)+'</div></div>';
+    root.innerHTML='<div class="msg host" style="max-width:420px;text-align:left"><h1 style="font-family:var(--fd)">Host sign-in</h1>'+(signedIn?'<p class="muted">You are signed in as '+esc(signedIn)+', but that account is not on the host list. Ask the person who set up the game to add it, or sign in with another account.</p><button class="hbtn" type="button" id="lo">Sign out</button>':'<p class="muted">Sign in to run the game and edit questions.</p><form id="lf" class="f" style="gap:12px"><div class="f"><label for="le">Email</label><input id="le" type="email" autocomplete="username" required value="'+esc(email)+'"></div><div class="f"><label for="lp">Password</label><input id="lp" type="password" autocomplete="current-password"></div><button class="hbtn pri" type="submit">Sign in</button><button class="hbtn" type="button" id="lm"'+(sent?' disabled':'')+'>'+(sent?'Sign-in link sent':'Email me a sign-in link instead')+'</button></form>')+'<div class="muted" id="lmsg" role="status">'+esc(msg)+'</div></div>';
     var f=$('#lf',root);
-    if(f)f.addEventListener('submit',async function(e){e.preventDefault();if(busy)return;busy=true;msg='Signing in…';$('#lmsg',root).textContent=msg;try{await B.auth.signIn($('#le',root).value.trim(),$('#lp',root).value);msg=''}catch(x){msg=(x&&x.message)||'Could not sign in.';draw(false)}busy=false});
-    var lm=$('#lm',root);if(lm)lm.addEventListener('click',async function(){var em=$('#le',root).value.trim();if(!em){$('#lmsg',root).textContent='Enter your email first.';return}try{await B.auth.magic(em);msg='Check your email for the sign-in link.'}catch(x){msg=(x&&x.message)||'Could not send the link.'}$('#lmsg',root).textContent=msg});
+    if(f)f.addEventListener('submit',async function(e){e.preventDefault();if(busy)return;busy=true;msg='Signing in…';$('#lmsg',root).textContent=msg;email=$('#le',root).value.trim();try{await B.auth.signIn(email,$('#lp',root).value);msg=''}catch(x){msg=(x&&x.message)||'Could not sign in.';draw(false)}busy=false});
+    var lm=$('#lm',root);if(lm)lm.addEventListener('click',async function(){var em=$('#le',root).value.trim();if(!em){$('#lmsg',root).textContent='Enter your email first.';return}if(sent)return;lm.disabled=true;try{await B.auth.magic(em);sent=true;lm.textContent='Sign-in link sent';msg='Check your email for the sign-in link. Each new link cancels the last one, so use the newest email.'}catch(x){lm.disabled=false;msg=(x&&x.message)||'Could not send the link.'}$('#lmsg',root).textContent=msg});
     var lo=$('#lo',root);if(lo)lo.addEventListener('click',function(){B.auth.signOut()});
   }
   draw(false);
@@ -658,12 +687,14 @@ async function init(){
   B=window.RT_BACKEND||null;
   var ok=false;try{ok=B?await B.init():false}catch(e){console.error(e)}
   DB=ok?B.db:null;
+  S.lean=isLean(S.route);
   if(ok){await refreshAuth();B.auth.onChange(async function(){var was=S.canEdit;await refreshAuth();if(S.route==='host'&&was!==S.canEdit)mount()})}
-  var g=null;try{g=localStorage.getItem('rt_gid');if(!g){g='g'+uid()+uid();localStorage.setItem('rt_gid',g)}}catch(e){g=g||('g'+uid()+uid())}
+  /* Guest id format is checked by the database rules (supabase/schema.sql): ^g[A-Za-z0-9]{1,40}$. */
+  var g=null;try{g=localStorage.getItem('rt_gid');if(!g||!/^g[A-Za-z0-9]{1,40}$/.test(g)){g='g'+uid()+uid();localStorage.setItem('rt_gid',g)}}catch(e){g=g||('g'+uid()+uid())}
   S.gid=g;
   if(DB)subscribeAll();
   mount();
-  window.addEventListener('hashchange',function(){var h=(location.hash||'').replace('#','').toLowerCase(),r=['host','tv','play'].indexOf(h)>-1?h:'home';if(r!==S.route){S.route=r;mount()}});
+  window.addEventListener('hashchange',function(){var h=(location.hash||'').replace('#','').toLowerCase(),r=['host','tv','play'].indexOf(h)>-1?h:'home';if(r!==S.route){if(needsReload(r)){location.reload();return}S.route=r;mount()}});
 }
 init();
 })();

@@ -1,6 +1,7 @@
 /* Supabase backend for Roast & Toast.
    Exposes window.RT_BACKEND with: configured, init(), db, auth, assets, isHost(), photoUrl(id).
-   db mimics a tiny document store: doc(path), collection(name) with get/set/update/delete/onSnapshot/where. */
+   db mimics a tiny document store: doc(path), collection(name) with get/set/update/delete/onSnapshot/where,
+   plus setPollOnly([col, ...]) to refresh some collections by polling instead of a live channel. */
 (function () {
   'use strict';
   var cfg = window.RT_CONFIG || {};
@@ -24,23 +25,39 @@
   }
 
   function makeDb(sb) {
-    var caches = {};
+    var caches = {}, pollOnly = new Set();
     function C(col) {
-      return caches[col] || (caches[col] = { rows: new Map(), loadP: null, subs: new Set(), ch: null, timer: null, ready: false });
+      return caches[col] || (caches[col] = { rows: new Map(), loadP: null, subs: new Set(), ch: null, timer: null, ready: false, seq: 0, inflight: 0, log: [] });
     }
     function fire(c) { c.subs.forEach(function (f) { try { f(); } catch (e) { console.error(e); } }); }
+    // Every change to the cache goes through here. While a full reload is in flight, changes are
+    // also logged so they can be replayed onto the reload's (possibly older) snapshot.
+    function apply(c, id, d) {
+      c.seq++;
+      if (d === undefined) c.rows.delete(id); else c.rows.set(id, d);
+      if (c.inflight) c.log.push({ seq: c.seq, id: id, d: d });
+      fire(c);
+    }
     async function reload(col) {
-      var c = C(col), all = [], from = 0, page = 1000;
-      for (;;) {
-        var r = await sb.from('docs').select('id,data').eq('col', col).order('id').range(from, from + page - 1);
-        if (r.error) throw r.error;
-        all = all.concat(r.data);
-        if (r.data.length < page) break;
-        from += page;
+      var c = C(col), all = [], from = 0, page = 1000, start = c.seq;
+      c.inflight++;
+      try {
+        for (;;) {
+          var r = await sb.from('docs').select('id,data').eq('col', col).order('id').range(from, from + page - 1);
+          if (r.error) throw r.error;
+          all = all.concat(r.data);
+          if (r.data.length < page) break;
+          from += page;
+        }
+        var m = new Map();
+        all.forEach(function (x) { m.set(x.id, x.data); });
+        c.log.forEach(function (e) { if (e.seq > start) { if (e.d === undefined) m.delete(e.id); else m.set(e.id, e.d); } });
+        c.rows = m; c.ready = true;
+      } finally {
+        c.inflight--;
+        if (!c.inflight) c.log = [];
       }
-      var m = new Map();
-      all.forEach(function (x) { m.set(x.id, x.data); });
-      c.rows = m; c.ready = true; fire(c);
+      fire(c);
     }
     function ensure(col) {
       var c = C(col);
@@ -51,14 +68,17 @@
       var c = C(col);
       c.subs.add(fn);
       ensure(col).then(function () { fn(); }).catch(function (e) { if (errCb) errCb(conv(e)); });
-      if (!c.ch) {
+      if (pollOnly.has(col)) {
+        if (!c.timer) c.timer = setInterval(function () { reload(col).catch(function () {}); }, 15000);
+      } else if (!c.ch) {
         c.ch = sb.channel('docs-' + col)
           .on('postgres_changes', { event: '*', schema: 'public', table: 'docs', filter: 'col=eq.' + col }, function (p) {
-            if (p.eventType === 'DELETE') c.rows.delete(p.old.id);
-            else c.rows.set(p.new.id, p.new.data);
-            fire(c);
+            // Supabase does not apply filters to DELETE events, so check the collection here.
+            if (p.eventType === 'DELETE') { if (p.old && p.old.col === col) apply(c, p.old.id, undefined); }
+            else if (p.new && p.new.col === col) apply(c, p.new.id, p.new.data);
           })
-          .subscribe(function (st) { if (st === 'SUBSCRIBED' && c.ready) reload(col).catch(function () {}); });
+          // Reload on every (re)subscribe: changes made before the channel was ready are not replayed.
+          .subscribe(function (st) { if (st === 'SUBSCRIBED') reload(col).catch(function () {}); });
         c.timer = setInterval(function () { reload(col).catch(function () {}); }, 15000);
       }
       return function () { c.subs.delete(fn); };
@@ -85,7 +105,7 @@
           d = clone(d);
           var r = await sb.from('docs').upsert({ col: col, id: id, data: d, updated_at: new Date().toISOString() });
           if (r.error) throw conv(r.error);
-          var c = C(col); c.rows.set(id, d); fire(c);
+          apply(C(col), id, d);
         },
         update: async function (d) {
           var cur = await self.get();
@@ -95,7 +115,7 @@
         delete: async function () {
           var r = await sb.from('docs').delete().eq('col', col).eq('id', id);
           if (r.error) throw conv(r.error);
-          var c = C(col); c.rows.delete(id); fire(c);
+          apply(C(col), id, undefined);
         },
         onSnapshot: function (next, err) {
           var last;
@@ -125,7 +145,11 @@
     function collection(col) {
       return Object.assign(query(col, []), { path: col, doc: function (id) { return doc(col + '/' + id); } });
     }
-    return { doc: doc, collection: collection };
+    // Collections named here are refreshed by polling only, with no live channel. Call before the
+    // first onSnapshot. Every live subscriber receives every change, so phones that do not need
+    // other guests' answers should poll them to stay under Supabase's realtime message limits.
+    function setPollOnly(cols) { (cols || []).forEach(function (col) { pollOnly.add(col); }); }
+    return { doc: doc, collection: collection, setPollOnly: setPollOnly };
   }
 
   B.init = async function () {
@@ -147,8 +171,8 @@
         var r = await sb.auth.signInWithOtp({ email: email, options: { emailRedirectTo: location.href.split('#')[0].split('?')[0] + '#host', shouldCreateUser: false } });
         if (r.error) throw r.error;
       },
-      signOut: async function () { await sb.auth.signOut(); },
-      onChange: function (cb) { sb.auth.onAuthStateChange(function () { cb(); }); }
+      signOut: async function () { await sb.auth.signOut({ scope: 'local' }); },
+      onChange: function (cb) { sb.auth.onAuthStateChange(function () { setTimeout(cb, 0); }); }
     };
     B.isHost = async function () {
       var s = await B.auth.session();

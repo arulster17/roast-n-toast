@@ -151,8 +151,9 @@ button{font-family:inherit;cursor:pointer}
 .phone .status{display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line);font-size:17px}
 .phone .status i{width:12px;height:12px;border-radius:50%;background:var(--a2);display:inline-block}
 .phone .mine{padding:14px 18px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line);font-size:19px;color:var(--text)}
-.phone .qphoto{border-radius:calc(var(--radius) - 4px);overflow:hidden;aspect-ratio:4/3;position:relative;background:var(--surface)}
+.phone .qphoto{border-radius:calc(var(--radius) - 4px);overflow:hidden;aspect-ratio:4/3;max-height:32vh;flex-shrink:0;position:relative;background:var(--surface)}
 .phone .qphoto .pimg{position:absolute;inset:0}
+.phone .qphoto~div textarea{min-height:100px}
 .bigtick{width:72px;height:72px;border-radius:50%;background:var(--a3);color:var(--on3);display:flex;align-items:center;justify-content:center}
 
 /* ---------- Home ---------- */
@@ -171,6 +172,7 @@ button{font-family:inherit;cursor:pointer}
 .hc{padding:6px 12px;border-radius:999px;background:var(--h-panel2);border:1px solid var(--h-line);font-size:14px;color:var(--h-muted)}
 .hc b{color:var(--h-text)}
 .h-grid{flex:1;display:grid;grid-template-columns:290px minmax(0,1fr) 380px;min-height:0}
+@media (max-width:1400px){.h-grid{grid-template-columns:260px minmax(0,1fr) 340px}}
 @media (max-width:1180px){.h-grid{grid-template-columns:minmax(0,1fr)}}
 .h-col{padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0;border-right:1px solid var(--h-line)}
 .h-col:last-child{border-right:0}
@@ -196,7 +198,7 @@ button{font-family:inherit;cursor:pointer}
 .hbtn.sm{min-height:34px;padding:0 12px;font-size:13px}
 .hbtn[disabled]{opacity:.45}
 .h-pv{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
-.pv-tv{flex:1;min-width:360px}
+.pv-tv{flex:1;min-width:300px}
 .pv-box{width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;border:1px solid var(--h-line);background:#000}
 .pv-phone{width:228px;flex:none}
 .pv-ph{width:228px;height:468px;border-radius:24px;overflow:hidden;border:1px solid var(--h-line);position:relative;background:var(--bg)}
@@ -208,6 +210,10 @@ button{font-family:inherit;cursor:pointer}
 .h-ctl{display:flex;flex-direction:column;gap:12px;padding:14px;border-radius:14px;background:var(--h-panel);border:1px solid var(--h-line)}
 .h-ctl .st{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .h-ctl .st b{font-size:17px}
+.h-ctl .clock{margin-left:auto;padding:4px 12px;border-radius:999px;background:var(--h-panel2);border:1px solid var(--h-line);font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+.h-ctl .clock.idle{color:var(--h-muted)}
+.h-ctl .clock.near{color:var(--h-acc);border-color:var(--h-acc)}
+.h-ctl .clock.over{color:var(--h-bad);border-color:var(--h-bad)}
 .h-ctl .btns{display:flex;gap:10px;flex-wrap:wrap}
 .h-ctl .btns .pri{flex:1;min-width:200px;min-height:54px;font-size:18px}
 .cue{padding:12px 14px;border-radius:12px;background:var(--h-panel);border:1px solid var(--h-line);font-size:15px;line-height:1.4}
@@ -222,7 +228,7 @@ button{font-family:inherit;cursor:pointer}
 .tabs button.on{background:var(--h-panel2);color:var(--h-acc);border-color:var(--h-acc)}
 .f{display:flex;flex-direction:column;gap:6px}
 .f label,.f .lbl{font-size:13px;font-weight:700;color:var(--h-muted)}
-.f input[type=text],.f input[type=number],.f input[type=url],.f textarea,.f select{width:100%;min-height:40px;border-radius:10px;border:1px solid var(--h-line);background:var(--h-bg);color:var(--h-text);font:inherit;padding:8px 10px}
+.f input[type=text],.f input[type=number],.f input[type=url],.f input[type=email],.f input[type=password],.f textarea,.f select{width:100%;min-height:40px;border-radius:10px;border:1px solid var(--h-line);background:var(--h-bg);color:var(--h-text);font:inherit;padding:8px 10px}
 .f textarea{resize:vertical}
 .f small{color:var(--h-muted);font-size:12px;line-height:1.35}
 .frow{display:flex;gap:10px}
