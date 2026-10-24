@@ -424,7 +424,7 @@ function createPlay(root,opts){
     if(send)send.addEventListener('click',function(){
       if(q.kind==='text'){
         var v=clean(draft);if(!v){err='Type an answer first.';render(true);return}
-        if(q.exactWords){var n=v.split(' ').filter(function(w){return /[\p{L}\p{N}]/u.test(w)}).length;if(n!==q.exactWords){err='Exactly '+q.exactWords+' word'+(q.exactWords>1?'s':'')+', please. You have '+n+'.';render(true);return}}
+        if(q.exactWords){var n=v.split(/[\s,\/.]+/).filter(function(w){return /[\p{L}\p{N}]/u.test(w)}).length;if(n!==q.exactWords){err='Exactly '+q.exactWords+' word'+(q.exactWords>1?'s':'')+', please. You have '+n+'.';render(true);return}}
         submit(q,v);
       }else if(selected)submit(q,selected);
     });
