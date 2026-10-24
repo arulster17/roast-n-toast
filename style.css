@@ -87,6 +87,11 @@ button{font-family:inherit;cursor:pointer}
 .cloud{position:absolute;inset:0}
 .cloud .w{position:absolute;white-space:nowrap;line-height:1.1;font-family:var(--fd);font-weight:var(--fdw);letter-spacing:-.02em;transform:translate(-50%,-50%);transition:left .9s cubic-bezier(.2,.8,.2,1),top .9s cubic-bezier(.2,.8,.2,1),font-size .9s cubic-bezier(.2,.8,.2,1);animation:pop .7s cubic-bezier(.2,.8,.2,1) both}
 .cloud .wi{display:inline-block;animation:bob 6s ease-in-out infinite;animation-delay:var(--d,0s)}
+.cloud .w.still{animation:none}
+.cloud .w.quiet{animation:wfade 1s ease-out both}
+.cloud .w.pulse{animation:pop .7s cubic-bezier(.2,.8,.2,1) both,wpulse .8s ease-in-out .55s}
+@keyframes wfade{from{opacity:0}to{opacity:1}}
+@keyframes wpulse{0%,100%{transform:translate(-50%,-50%) scale(1)}45%{transform:translate(-50%,-50%) scale(1.1)}}
 .c0{color:var(--ac)}.c1{color:var(--text)}.c2{color:var(--muted)}
 /* bars */
 .bars{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:14px}
@@ -110,36 +115,57 @@ button{font-family:inherit;cursor:pointer}
 .spot-meta{color:var(--muted);font-size:18px}
 
 /* ---------- Phone ---------- */
-.phone{min-height:100vh;display:flex;flex-direction:column;gap:18px;padding-block:20px 28px;padding-inline:max(18px,env(safe-area-inset-left,0px));background:var(--bg);color:var(--text);font-family:var(--fb);max-width:560px;margin:0 auto}
-.phone .brand{font-weight:700;font-size:16px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:12px}
+body.r-play{overflow:hidden}
+/* The phone is pinned to the visible viewport (JS keeps --ph-h/--ph-top in sync with visualViewport) and never scrolls; fit() in createPlay shrinks content to make it fit. */
+.phone{position:fixed;left:0;right:0;top:var(--ph-top,0px);height:100vh;height:var(--ph-h,100dvh);overflow:hidden;display:flex;flex-direction:column;gap:16px;padding:max(16px,env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));background:var(--bg);color:var(--text);font-family:var(--fb);max-width:560px;margin:0 auto}
+.phone.dense{gap:10px;padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:max(10px,env(safe-area-inset-bottom,0px))}
+.phone .brand{flex:none;font-weight:700;font-size:16px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:12px}
+.phone.nobrand .brand{display:none}
 .phone .brand small{font-family:var(--fb);font-weight:500;font-size:15px;color:var(--muted)}
-.phone h2{margin:0;font-family:var(--fd);font-weight:var(--fdw);letter-spacing:-.02em;line-height:1.02;font-size:calc(36px*var(--scale));text-wrap:balance}
+.phone h2{margin:0;font-family:var(--fd);font-weight:var(--fdw);letter-spacing:-.02em;line-height:1.05;font-size:calc(36px*var(--scale));text-wrap:balance;overflow-wrap:anywhere}
 .phone p{margin:0;font-size:18px;line-height:1.4;color:var(--muted)}
 .phone .grow{flex:1}
-.phone .pbtn{min-height:58px;border-radius:calc(var(--radius) - 2px);border:0;background:var(--a2);color:var(--on2);font-size:20px;font-weight:700;padding:0 20px;width:100%}
+.phone .ph-q{flex:none;display:flex;flex-direction:column;gap:12px;min-height:0}
+.phone.dense .ph-q{gap:8px}
+.phone .ph-a{flex:1 1 0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.phone .ph-a.ph-c{justify-content:center}
+.phone .ph-b{flex:none;display:flex;flex-direction:column;gap:10px}
+.phone.pscroll .ph-q{flex-shrink:1;overflow-y:auto}
+.phone.pscroll .ph-a{overflow-y:auto}
+.phone.pscroll .opts,.phone.pscroll .popts,.phone.pscroll .tb{flex:none}
+.phone .pbtn{min-height:56px;border-radius:calc(var(--radius) - 2px);border:0;background:var(--a2);color:var(--on2);font-size:20px;font-weight:700;padding:0 20px;width:100%}
+.phone.dense .pbtn{min-height:50px}
 .phone .pbtn[disabled]{opacity:.45}
 .phone .pbtn.ghost{background:transparent;border:1px solid var(--muted);color:var(--text);font-weight:500}
-.phone textarea{width:100%;min-height:150px;resize:none;border-radius:calc(var(--radius) - 2px);border:2px solid var(--line);background:var(--surface);color:var(--text);font:inherit;font-size:20px;line-height:1.35;padding:16px}
+.phone .tb{flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:8px}
+.phone textarea{flex:1 1 auto;width:100%;min-height:calc(3 * 1.35em + 28px);max-height:260px;resize:none;border-radius:calc(var(--radius) - 2px);border:2px solid var(--line);background:var(--surface);color:var(--text);font:inherit;font-size:19px;line-height:1.35;padding:12px 14px}
+.phone.dense textarea{font-size:17px;padding:10px 12px}
 .phone textarea:focus{border-color:var(--a2);outline:none}
-.phone label.l{font-size:15px;font-weight:700;color:var(--muted)}
-.phone .meta{display:flex;justify-content:space-between;gap:10px;font-size:14px;color:var(--muted)}
-.phone .err{color:var(--a1);font-size:16px;font-weight:600;min-height:22px}
-.phone .opts{display:flex;flex-direction:column;gap:10px}
-.phone .opt{min-height:58px;text-align:left;border-radius:calc(var(--radius) - 4px);border:1px solid transparent;background:var(--surface);color:var(--text);font-size:19px;font-weight:500;padding:12px 18px}
+.phone label.l{flex:none;font-size:15px;font-weight:700;color:var(--muted)}
+.phone .meta{flex:none;display:flex;justify-content:space-between;gap:10px;font-size:14px;color:var(--muted)}
+.phone .err{flex:none;color:var(--a1);font-size:16px;font-weight:600}
+.phone .err:empty{display:none}
+.phone .opts{flex:1 1 0;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);grid-auto-rows:58px;gap:10px;align-content:start}
+.phone.dense .opts{gap:8px}
+.phone .opts.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+.phone .opt{display:flex;align-items:center;justify-content:flex-start;min-width:0;overflow:hidden;text-align:left;line-height:1.2;border-radius:calc(var(--radius) - 4px);border:1px solid transparent;background:var(--surface);color:var(--text);font-size:19px;font-weight:500;padding:4px 18px}
+.phone .opts.two .opt{font-size:17px;padding:4px 14px}
 .phone .opt.sel{background:var(--a2);color:var(--on2);border-color:var(--a2);font-weight:700}
-.phone .popts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.phone .popt{position:relative;aspect-ratio:1/1;border-radius:calc(var(--radius) - 4px);overflow:hidden;border:3px solid transparent;padding:0;background:var(--surface);color:#fff}
+.phone .popts{flex:1 1 0;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;justify-content:center;align-content:start}
+.phone .popt{position:relative;width:100%;height:100%;border-radius:calc(var(--radius) - 4px);overflow:hidden;border:3px solid transparent;padding:0;background:var(--surface);color:#fff}
 .phone .popt.sel{border-color:var(--a2)}
 .phone .popt .cap{position:absolute;left:0;right:0;bottom:0;padding:8px 10px;background:linear-gradient(0deg,rgba(0,0,0,.75),rgba(0,0,0,0));text-align:left;font-weight:700;font-size:16px}
+.phone .popts.sm .popt .cap{padding:5px 7px;font-size:13px}
 .phone .popt .tick{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;background:var(--a2);color:var(--on2);display:none;align-items:center;justify-content:center;font-weight:700}
+.phone .popts.sm .popt .tick{top:5px;right:5px;width:24px;height:24px;font-size:13px}
 .phone .popt.sel .tick{display:flex}
 .phone .round{font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase}
-.phone .status{text-align:center;font-size:18px;color:var(--muted);padding:12px 0}
-.phone .mine{padding:14px 18px;border-radius:var(--radius);background:var(--surface);font-size:19px;color:var(--text)}
+.phone .status{text-align:center;font-size:18px;color:var(--muted);padding:10px 0}
+.phone .mine{flex:none;padding:12px 16px;border-radius:var(--radius);background:var(--surface);font-size:19px;color:var(--text);overflow-wrap:anywhere}
+.phone.tight .mine{max-height:5.2em;overflow-y:auto;font-size:16px;padding:8px 12px}
 .phone .mine small{display:block;color:var(--muted);font-size:14px;font-weight:600;margin-bottom:4px}
-.phone .qphoto{border-radius:calc(var(--radius) - 4px);overflow:hidden;aspect-ratio:4/3;max-height:32vh;flex-shrink:0;position:relative;background:var(--surface)}
+.phone .qphoto{flex:none;align-self:center;height:30vh;max-width:100%;aspect-ratio:4/3;border-radius:calc(var(--radius) - 4px);overflow:hidden;position:relative;background:var(--surface)}
 .phone .qphoto .pimg{position:absolute;inset:0}
-.phone .qphoto~div textarea{min-height:100px}
 
 /* ---------- Home ---------- */
 .home{min-height:100vh;display:flex;flex-direction:column;justify-content:center;gap:26px;padding:32px max(20px,env(safe-area-inset-left,0px));max-width:560px;margin:0 auto}
@@ -220,7 +246,7 @@ button{font-family:inherit;cursor:pointer}
 .pv-phone{width:180px;flex:none}
 .pv-ph{width:180px;height:369px;border-radius:20px;overflow:hidden;border:1px solid var(--h-line);position:relative;background:var(--bg)}
 .pv-ph .scaler{width:390px;transform:scale(.4615);transform-origin:0 0;pointer-events:none;height:800px;overflow:hidden}
-.pv-ph .phone{min-height:800px;padding-block:18px}
+.pv-ph .phone{position:relative;top:auto;height:800px;max-width:none}
 .seg{display:inline-flex;align-self:flex-start;gap:2px;padding:2px;border-radius:8px;background:var(--h-panel)}
 .seg button{border:0;border-radius:6px;background:transparent;color:var(--h-muted);padding:5px 10px;font-size:12px;font-weight:600}
 .seg button.on{background:var(--h-panel2);color:var(--h-text)}
