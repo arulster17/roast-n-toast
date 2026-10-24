@@ -327,7 +327,7 @@ function createTV(root){
     var sc=t.scale||1;
     if(phase==='lobby'){
       var link=esc(String(ctx.joinUrl).replace(/^https?:\/\//,'')).replace(/\//g,'/<wbr>');
-      stage.innerHTML=rings+'<div class="lobby"><h1>'+esc(c.title)+'</h1><p>'+esc(c.tagline)+'</p><div class="qr-card" data-k="qr"></div><div class="joinurl">'+link+'</div><p class="how">No app needed. Answers are anonymous.</p><div class="joined" data-k="guests"></div></div>';
+      stage.innerHTML=rings+'<div class="lobby"><h1>'+esc(c.title)+'</h1><p>'+esc(c.tagline)+'</p><div class="qr-card" data-k="qr"></div><div class="joinurl">'+link+'</div><div class="joined" data-k="guests"></div></div>';
       qrInto($('[data-k=qr]',stage),ctx.joinUrl,260);
     }else if(phase==='end'){
       stage.innerHTML=rings+'<div class="end"><h1>'+esc(c.finale)+'</h1></div>';
