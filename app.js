@@ -214,7 +214,7 @@ function cloudModule(el,c0,opt){
     out.forEach(function(o,i){pos.set(o.it.key,{o:o,tn:tone(its,o.it,i)})});
     box.innerHTML='';nodes.clear();
     var st=plan(mode,its,c,c.q.id+'|'+(c.revealAt||t0)),skip=Math.max(0,Date.now()-t0),end=st.length?st[st.length-1].at:0;
-    anim={timers:[]};
+    anim={timers:[],hid:JSON.stringify((c.mod&&c.mod.hidden)||[])};
     function show(s,now){s.keys.forEach(function(k){
       var p=pos.get(k);if(!p)return;var n=nodes.get(k);
       if(!n){n=mk(p.o,s.grow?1:p.tn);if(now)n.classList.add('still');else if(s.cls)n.classList.add(s.cls);if(s.grow)n.classList.add('grow')}
@@ -225,7 +225,7 @@ function cloudModule(el,c0,opt){
   }
   function rank(c){items=agg(c).filter(function(i){return i.count>0}).sort(function(a,b){return b.count-a.count||b.t-a.t}).slice(0,48)}
   return {
-    update:function(c){lastC=c;rank(c);if(anim)return;if(pend&&items.length){var t0=pend.t0;pend=null;start(c,t0)}else draw()},
+    update:function(c){lastC=c;rank(c);if(anim){if(JSON.stringify((c.mod&&c.mod.hidden)||[])===anim.hid)return;stop();nodes.forEach(function(n){n.classList.remove('grow')})}if(pend&&items.length){var t0=pend.t0;pend=null;start(c,t0)}else draw()},
     replay:function(){pend={t0:Date.now()};if(lastC){rank(lastC);if(items.length){pend=null;start(lastC,Date.now())}}},
     destroy:function(){stop();if(document.fonts&&document.fonts.removeEventListener)document.fonts.removeEventListener('loadingdone',onFonts)}
   };
@@ -315,7 +315,7 @@ function photoPanel(q){
 function createTV(root){
   root.classList.add('tv-root');
   root.innerHTML='<div class="tv-fit"><div class="stage"></div></div>';
-  var fit=root.firstChild,stage=fit.firstChild,sig='',mod=null,phase='lobby',lastPh=null,lastReady=false,lastRep,aopt=null;
+  var fit=root.firstChild,stage=fit.firstChild,sig='',mod=null,phase='lobby',lastPh=null,lastReady=false,lastRep,lastQid=null,aopt=null;
   function size(){var w=root.clientWidth,h=root.clientHeight;if(!w||!h)return;var s=Math.min(w/1280,h/720);stage.style.transform='scale('+s+')';fit.style.width=1280*s+'px';fit.style.height=720*s+'px'}
   var ro=new ResizeObserver(size);ro.observe(root);size();
   function killMod(){if(mod&&mod.destroy)mod.destroy();mod=null}
@@ -349,8 +349,9 @@ function createTV(root){
     var t=ctx.th,c=ctx.cfg;
     var s=[phase,t.font,t.pattern,t.align,t.scale,t.radius,c.title,c.tagline,c.finale,ctx.joinUrl,q?JSON.stringify([q.id,q.text,q.accent,q.display,q.kind,q.photo,q.photoCaption,q.options,q.exactWords,q.cloudAnim]):'',ctx.idx,ctx.total].join('§');
     /* cloud build-up: on a live switch to results, in previews, or on a fresh load shortly after the reveal */
-    var prevPh=lastPh,prevReady=lastReady;lastPh=phase;lastReady=!!(ctx.stateReady||ctx.preview);aopt=null;
-    if(phase==='reveal'&&ctx.preview)aopt={t0:Date.now()};else if(phase==='reveal'&&prevPh!=='reveal'){if(prevPh!==null&&prevReady)aopt={t0:Date.now()};else if(ctx.revealAt)aopt={t0:Math.min(Date.now(),ctx.revealAt)}}
+    var prevPh=lastPh,prevReady=lastReady,prevQ=lastQid;lastPh=phase;lastReady=!!(ctx.stateReady||ctx.preview);lastQid=q?q.id:null;aopt=null;
+    if(phase==='reveal'&&ctx.preview)aopt={t0:Date.now()};
+    else if(phase==='reveal'&&ctx.peek&&prevPh==='reveal'&&prevQ!==lastQid)aopt={t0:Date.now()};else if(phase==='reveal'&&prevPh!=='reveal'){if(prevPh!==null&&prevReady)aopt={t0:Date.now()};else if(ctx.revealAt)aopt={t0:Math.min(Date.now(),ctx.revealAt)}}
     if(s!==sig){sig=s;build(ctx)}
     if(ctx.replay!==lastRep){var had=lastRep!==undefined;lastRep=ctx.replay;if(had&&phase==='reveal'&&mod&&mod.replay)mod.replay()}
     var answered=new Set(ctx.answers.map(function(a){return a.g})).size,total=Math.max(ctx.guestsCount,answered);
@@ -548,17 +549,19 @@ async function removeSim(){
 function createHost(root){
   if(!S.canEdit)return createLogin(root);
   var H={tab:'edit',edit:null,pv:'live',tv:null,ph:null,pend:{}};
-  root.innerHTML='<div class="host"><header class="h-bar"><div class="h-brand">'+esc(cfg().title)+' <span>Host</span></div><div class="h-chips" id="chips"></div></header><div class="h-grid"><section class="h-col" id="col-l"><div class="h-title"><span>Questions</span><span id="runlen"></span></div><div id="qlist" class="qlist"></div><button class="hbtn sm" id="addq" type="button">Add question</button></section><section class="h-col" id="col-m"><div class="h-ctl" id="ctl"></div><div class="cue" id="cue" hidden></div><div class="h-pv"><div class="pv-tv"><div class="seg" role="group" aria-label="Preview"><button type="button" data-pv="live">Live</button><button type="button" data-pv="collect">Selected question</button><button type="button" data-pv="results">Selected results</button></div><div class="pv-box" id="pvtv"></div></div><div class="pv-phone"><div class="pv-ph"><div class="scaler" id="pvph"></div></div></div></div><div class="h-sec"><div class="h-title"><span>Answers</span><span id="mcount"></span></div><div class="mlist" id="modlist"></div></div></section><section class="h-col" id="col-r"><div class="tabs" role="tablist"><button type="button" data-tab="edit" role="tab">Question</button><button type="button" data-tab="look" role="tab">Theme</button><button type="button" data-tab="share" role="tab">Setup</button></div><div id="panel" class="panel"></div></section></div></div>';
+  root.innerHTML='<div class="host"><header class="h-bar"><div class="h-brand">'+esc(cfg().title)+' <span>Host</span></div><div class="h-chips" id="chips"></div></header><div class="h-grid"><section class="h-col" id="col-l"><div class="h-title"><span>Questions</span><span id="runlen"></span></div><div id="qlist" class="qlist"></div><button class="hbtn sm" id="addq" type="button">Add question</button></section><section class="h-col" id="col-m"><div class="h-ctl" id="ctl"></div><div class="cue" id="cue" hidden></div><div class="h-pv"><div class="pv-tv"><div class="seg" role="group" aria-label="Preview"><button type="button" data-pv="live">Live</button><button type="button" data-pv="collect">Selected question</button><button type="button" data-pv="results">Selected results</button><button type="button" data-pv="peek" title="Real results for the live question. Only you see this.">Peek</button></div><div class="pv-box" id="pvtv"></div></div><div class="pv-phone"><div class="pv-ph"><div class="scaler" id="pvph"></div></div></div></div><div class="h-sec"><div class="h-title"><span>Answers</span><span id="mcount"></span></div><div class="mlist" id="modlist"></div></div></section><section class="h-col" id="col-r"><div class="tabs" role="tablist"><button type="button" data-tab="edit" role="tab">Question</button><button type="button" data-tab="look" role="tab">Theme</button><button type="button" data-tab="share" role="tab">Setup</button></div><div id="panel" class="panel"></div></section></div></div>';
   var $r=function(s){return $(s,root)};
   H.tv=createTV($r('#pvtv'));
   H.ph=createPlay($r('#pvph'),{preview:true,ctx:function(){
-    if(H.pv==='live')return {q:curQ(),phase:S.state.phase,locked:S.state.locked};
+    if(H.pv==='live'||H.pv==='peek')return {q:curQ(),phase:S.state.phase,locked:S.state.locked};
     var q=S.qs.find(function(x){return x.id===H.edit});return {q:q||null,phase:q?'collect':'lobby',locked:false};
   }});
   function selQ(){return S.qs.find(function(x){return x.id===H.edit})||null}
   function dispLabel(q){var d=displayFor(q),l=(DISPLAYS[q.kind]||DISPLAYS.text).find(function(x){return x[0]===d});return l?l[1]:d}
   function pvCtx(){
     var q=selQ();
+    /* Peek: the real results of the live question, shown only here; nothing is written */
+    if(H.pv==='peek'){var lc=liveCtx();return lc.q&&(lc.phase==='collect'||lc.phase==='reveal')?Object.assign(lc,{phase:'reveal',peek:true}):lc}
     if(H.pv==='live'||!q)return liveCtx();
     var base={cfg:cfg(),th:theme(),q:q,idx:S.qs.indexOf(q),total:S.qs.length,locked:false,mod:{hidden:[],featured:null},joinUrl:joinUrl()};
     if(H.pv==='collect')return Object.assign(base,{phase:'collect',answers:sampleAnswers(q).slice(0,32),guestsCount:56});
@@ -589,7 +592,7 @@ function createHost(root){
     else if(ph==='collect'){st='<b>Question '+(i+1)+' of '+S.qs.length+'</b><span class="muted">'+answered+' of '+tot+' answered'+(S.state.locked?', closed':'')+'</span>';pri='<button class="hbtn pri" type="button" data-act="reveal">Reveal answers</button><button class="hbtn" type="button" data-act="lock">'+(S.state.locked?'Reopen answers':'Close answers')+'</button>'}
     else if(ph==='reveal'){st='<b>Question '+(i+1)+' of '+S.qs.length+'</b><span class="muted">Results showing, '+answered+' answered</span>';pri='<button class="hbtn pri" type="button" data-act="next">'+(i+1<S.qs.length?'Next question':'Finale')+'</button><button class="hbtn" type="button" data-act="reopen">Reopen answers</button>'}
     else{st='<b>Finale</b><span class="muted">Toast screen showing</span>';pri='<button class="hbtn pri" type="button" data-act="lobby">Back to lobby</button>'}
-    var sec=(ph==='reveal'&&q&&q.kind==='text'&&displayFor(q)==='cloud'?'<button class="lnk" type="button" data-act="replayanim">Replay animation</button>':'')+'<button class="lnk" type="button" data-act="prev"'+(i>0||(ph==='end'&&q)?'':' disabled')+'>Back</button><button class="lnk" type="button" data-act="lobby"'+(ph==='lobby'||!q?' disabled':'')+'>Lobby</button><button class="lnk" type="button" data-act="finale"'+(ph==='end'?' disabled':'')+'>Finale</button><span class="kbd" aria-hidden="true">→ or Space: next · ←: back</span>';
+    var sec=(ph==='reveal'&&q&&q.kind==='text'&&displayFor(q)==='cloud'?'<button class="lnk" type="button" data-act="replayanim">Replay animation</button>':'')+(ph==='collect'&&q?'<button class="lnk" type="button" data-pv="peek">Peek results</button>':'')+'<button class="lnk" type="button" data-act="prev"'+(i>0||(ph==='end'&&q)?'':' disabled')+'>Back</button><button class="lnk" type="button" data-act="lobby"'+(ph==='lobby'||!q?' disabled':'')+'>Lobby</button><button class="lnk" type="button" data-act="finale"'+(ph==='end'?' disabled':'')+'>Finale</button><span class="kbd" aria-hidden="true">→ or Space: next · ←: back</span>';
     var h='<div class="st">'+st+'<span class="clock" data-k="clock" title="Elapsed against your target. Only you see this."></span></div><div class="btns">'+pri+'</div><div class="sub">'+sec+'</div>';
     if($r('#ctl').dataset.h!==h){$r('#ctl').innerHTML=h;$r('#ctl').dataset.h=h}
     updClock();
